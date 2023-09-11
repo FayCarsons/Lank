@@ -35,20 +35,23 @@ fn main() -> std::io::Result<()> {
         if input.eq("exit") {
             break;
         } else if input.eq("(display env)") {
-            println!("env: {:#?}", *env.clone());
+            println!("Lank> env: {:#?}", *env.clone());
+        } else if input.eq("") {
+            continue
         } else {
             let val = eval(input.as_ref(), &mut env);
+            print!("Lank> ");
             match val {
-                Err(e) => println!("{e}"),
+                Err(e) => println!("{e} "),
                 Ok(Object::Void) => {}
                 Ok(Object::Int(n)) => println!("{n}"),
                 Ok(Object::Bool(b)) => println!("{b}"),
                 Ok(Object::Symbol(s)) => println!("{s}"),
                 Ok(Object::Func(params, body)) => {
-                    println!("Func(");
-                    params.iter().for_each(|p| println!("{p}"));
-                    println!(")");
-                    body.iter().for_each(|exp| println!("{exp}"));
+                    println!("Func (");
+                    params.iter().for_each(|p| println!("{p} "));
+                    println!(") ");
+                    body.iter().for_each(|exp| println!("({exp}) "));
                 }
                 Ok(x) => println!("{x}"),
             }

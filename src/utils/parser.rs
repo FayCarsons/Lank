@@ -1,4 +1,4 @@
-use super::lexer::{tokenize, Token};
+use super::lexer::{tokenize, Token, NativeOp};
 
 use std::collections::VecDeque;
 use std::fmt;
@@ -9,6 +9,8 @@ pub enum Object {
     Int(i32),
     Bool(bool),
     Symbol(String),
+    String(String),
+    NativeOp(NativeOp),
     Func(Vec<String>, Vec<Object>),
     List(Vec<Object>),
     Vec(VecDeque<Object>),
@@ -40,6 +42,8 @@ impl fmt::Display for Object {
             Object::Bool(b) => write!(f, "{b}"),
             Object::Symbol(s) => write!(f, "{s}"),
             Object::Vec(v) => write!(f, "{v:?}"),
+            Object::String(s) => write!(f, "\"{s}\""),
+            Object::NativeOp(s) => write!(f, "Native Op {s}"),
         }
     }
 }
@@ -75,6 +79,7 @@ fn parse_list(tokens: &mut Vec<Token>) -> Result<Object, ParseError> {
             Token::Int(n) => list.push(Object::Int(n)),
             Token::Symbol(s) => list.push(Object::Symbol(s)),
             Token::Bool(b) => list.push(Object::Bool(b)),
+            Token::NativeOp(op) => list.push(Object::NativeOp(op)),
             Token::LParen => {
                 tokens.push(Token::LParen);
                 let rest = parse_list(tokens).unwrap();
@@ -89,6 +94,7 @@ fn parse_list(tokens: &mut Vec<Token>) -> Result<Object, ParseError> {
                 list.push(rest);
             }
             Token::RSquare => return Ok(Object::Vec(VecDeque::from(list))),
+            
             Token::Sugar => list.push(Object::Void),
         }
     }

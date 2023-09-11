@@ -1,10 +1,12 @@
-#[allow(non_upper_case_globals)]
+#![allow(non_upper_case_globals)]
+
 use super::{
+    BINARY_OPS, UNARY_OPS, BOOL_OPS, lexer::NativeOp,
     env::{Env, EnvPtr},
     parser::{parse, Object},
 };
-use std::io::Write;
 use rand::Rng;
+use std::io::Write;
 
 type EvalResult = Result<Object, String>;
 
@@ -31,25 +33,30 @@ fn eval_list(list: &[Object], env: &mut EnvPtr) -> EvalResult {
         Some(op) => op,
         None => return Err("Empty Parens".to_owned()),
     };
+    
 
     match head {
+        Object::NativeOp(op) => {
+            match op {
+                NativeOp::Binary(s) => eval_binary_op(list,env),
+                NativeOp::Unary(s) => eval_unary(list, env),
+                NativeOp::Boolean(s) => eval_bool(list, env),
+            }
+        }
         Object::Symbol(s) => match s.as_str() {
-            "+" | "-" | "*" | "/" | "mod" | ">" | ">=" | "<" | "<=" | "!=" | "==" | "<<" | ">>" | "exp"
-            | "&" | "|" | "^" => eval_arithmetic(list, env),
-            "abs" | "neg" | "bit-flip" | "not" => eval_unary(list, env),
-            "noteq" | "eq" | "or" | "and" => eval_bool(list, env),
             "def" => eval_def(&list[1..], env),
             "defn" => defn(&list[1..], env),
-            "if" => eval_ternary(&list[1..], env),
+            "if" | "?" => eval_ternary(&list[1..], env),
             "when" => eval_when(&list[1..], env),
             "match" => eval_match(&list[1..], env),
+            "do" => eval_do(&list[1..], env),
             "fn" => eval_fn_def(&list[1..]),
             "display" => {
                 display(&list[1..], env);
                 Ok(Object::Void)
-            },
+            }
             "rand" => gen_rand(&list[1..], env),
-            _ => eval_fn_call(s, list, env),
+            _ => eval_fn_call(s, &list[1..], env),
         },
         _ => {
             let mut new_list = Vec::new();
@@ -64,19 +71,20 @@ fn eval_list(list: &[Object], env: &mut EnvPtr) -> EvalResult {
         }
     }
 }
-
-fn eval_arithmetic(list: &[Object], env: &mut EnvPtr) -> EvalResult {
-    let operand = match list.first().expect("Empty Expression") {
-        Object::Symbol(s) => s.as_str(),
-        e => return Err(format!("Expected Function or Operator got {e}")),
+// Fix this!! could be handled much more elegantly
+fn eval_binary_op(list: &[Object], env: &mut EnvPtr) -> EvalResult {
+    let symbol = if let Object::NativeOp(NativeOp::Binary(s)) = &list[0] {
+        s.as_str()
+    } else {
+        return Err(format!("Expected Native Op got {}", list[0]))
     };
 
-    let operation: fn(i32, i32) -> i32 = match operand {
+    let operation: fn(i32, i32) -> i32 = match symbol {
         "+" => i32::saturating_add,
         "-" => i32::saturating_sub,
         "*" => i32::saturating_mul,
         "/" => i32::saturating_div,
-        "mod" => |a,b| a % b,
+        "mod" => |a, b| a % b,
         ">>" => |x, shift| x.wrapping_shr(shift as u32),
         "<<" => |x, shift| x.wrapping_shl(shift as u32),
         "exp" => |x, pow| x.saturating_pow(pow as u32),
@@ -101,7 +109,7 @@ fn eval_arithmetic(list: &[Object], env: &mut EnvPtr) -> EvalResult {
         },
         "!=" => |a, b| if a != b { 1 } else { 0 },
         "==" => |a, b| if a == b { 1 } else { 0 },
-        _ => return Err(format!("Unrecognized Arithmmetic Operation {operand}")),
+        _ => return Err(format!("Unrecognized Arithmmetic Operation {symbol}")),
     };
 
     let args = &list[1..];
@@ -110,8 +118,10 @@ fn eval_arithmetic(list: &[Object], env: &mut EnvPtr) -> EvalResult {
         .map(|a| eval_obj(a, env))
         .collect::<Vec<EvalResult>>();
 
-    if args.iter().any(|arg| arg.is_err()) {
-        return Err(ArithmeticError.to_string());
+    for arg in args.iter() {
+        if arg.is_err() {
+            return arg.clone();
+        }
     }
 
     let res = args
@@ -120,14 +130,14 @@ fn eval_arithmetic(list: &[Object], env: &mut EnvPtr) -> EvalResult {
             if let Object::Int(num) = arg.as_ref().unwrap() {
                 num
             } else {
-                todo!()
+                &0
             }
         })
         .copied()
         .reduce(operation);
 
     if let Some(result) = res {
-        match operand {
+        match symbol {
             ">" | ">=" | "<" | "<=" | "!=" | "==" => Ok(Object::Bool(result != 0)),
             _ => Ok(Object::Int(result)),
         }
@@ -165,11 +175,7 @@ fn eval_unary(list: &[Object], env: &mut EnvPtr) -> EvalResult {
             }
         },
         "not" => |o: Object| {
-            if let Object::Bool(cond) = o {
-                Ok(Object::Bool(!cond))
-            } else {
-                Err(ArithmeticError.to_string())
-            }
+            Ok(Object::Bool(! nil(&o)))
         },
         _ => return Err(format!("Unknown Unary Operator {operator}")),
     };
@@ -213,10 +219,10 @@ fn eval_bool(list: &[Object], env: &mut EnvPtr) -> EvalResult {
     };
 
     match operator {
-        "not-eq" => Ok(Object::Bool(lhs != rhs)),
-        "or" => Ok(Object::Bool(*lhs || *rhs)),
+        "xor" => Ok(Object::Bool(lhs ^ rhs)),
+        "or" => Ok(Object::Bool(*lhs | *rhs)),
         "eq" => Ok(Object::Bool(lhs == rhs)),
-        "and" => Ok(Object::Bool(*lhs && *rhs)),
+        "and" => Ok(Object::Bool(*lhs & *rhs)),
         _ => Err(format!("Unrecognized Boolean Operator {operator}!")),
     }
 }
@@ -239,9 +245,9 @@ fn eval_def(list: &[Object], env: &mut EnvPtr) -> EvalResult {
 }
 
 fn eval_ternary(list: &[Object], env: &mut EnvPtr) -> EvalResult {
-    let cond = eval_obj(&list[1], env).unwrap_or(Object::Void);
+    let cond = eval_obj(&list[0], env).unwrap_or(Object::Void);
     let bool = nil(&cond);
-
+    println!("Cond: {cond}, Parsed as {bool}");
     if bool {
         eval_obj(&list[1], env)
     } else {
@@ -252,7 +258,7 @@ fn eval_ternary(list: &[Object], env: &mut EnvPtr) -> EvalResult {
 fn eval_when(list: &[Object], env: &mut EnvPtr) -> EvalResult {
     let cond = eval_obj(&list[0], env).unwrap_or(Object::Void);
     let bool = nil(&cond);
-
+    println!("Cond: {cond}, Parsed as {bool}");
     if bool {
         eval_obj(&list[1], env)
     } else {
@@ -290,6 +296,27 @@ fn eval_match(list: &[Object], env: &mut EnvPtr) -> EvalResult {
     Ok(Object::Void)
 }
 
+fn eval_do(list: &[Object], env: &mut EnvPtr) -> EvalResult {
+    let exprs = list
+        .iter()
+        .map(|expr| {
+            if let Object::List(l) = expr {
+                eval_list(l, env)
+            } else {
+                eval_obj(expr, env)
+            }
+        })
+        .collect::<Vec<EvalResult>>();
+
+    for expr in exprs.iter() {
+        if expr.is_err() {
+            return expr.clone();
+        }
+    }
+
+    Ok(exprs.iter().last().unwrap().clone().unwrap().clone())
+}
+
 fn eval_symbol(s: &str, env: &mut EnvPtr) -> EvalResult {
     let val = env.borrow_mut().get(s);
     match val {
@@ -321,7 +348,6 @@ fn eval_fn_def(list: &[Object]) -> EvalResult {
 }
 
 fn defn(list: &[Object], env: &mut EnvPtr) -> EvalResult {
-    println!("list in defn: {list:?}");
     let name = &list[0];
     let fun = &list[1..];
 
@@ -333,23 +359,37 @@ fn defn(list: &[Object], env: &mut EnvPtr) -> EvalResult {
     eval_def([name.clone(), fun].as_ref(), env)
 }
 
-fn eval_fn_call(s: &str, list: &[Object], env: &mut EnvPtr) -> EvalResult {
-    let fun = env.borrow_mut().get(s);
+fn eval_fn_call(name: &str, list: &[Object], env: &mut EnvPtr) -> EvalResult {
+    let func = env.borrow_mut().get(name);
 
-    match fun {
-        Some(Object::Func(params, body)) => {
-            let mut new_env = Env::new_extended(env.clone());
-            for (i, param) in params.iter().enumerate() {
-                let value = eval_obj(&list[i + 1], env).unwrap();
-                new_env.borrow_mut().set(param, value);
-            }
-            eval_obj(&Object::List(body), &mut new_env)
+    if func.is_none() {
+        return Err(format!("{name} Is Not A Function"))
+    } 
+
+    let (params, body) = if let Object::Func(params, body) = func.unwrap() {
+        (params, body)
+    } else {
+        return Err(format!("Invalid Function"))
+    };
+    
+    let head = &list[0];
+    let args = if let Object::List(l) = head {
+        l.clone() 
+    } else {
+        vec![head.clone()]
+    };
+
+    let mut temp_env = Env::new_extended(env.clone());
+        for (arg, param) in args.iter().zip(params.iter()) {
+            temp_env.borrow_mut().set(param, arg.clone());
         }
-        _ => Err(format!("{s} Is Not A Function")),
-    }
+        eval_obj(&Object::List(body), &mut temp_env)
 }
 
+
+
 fn display(list: &[Object], env: &mut EnvPtr) {
+    print!("Lank> ");
     list.iter().for_each(|x| {
         let res = eval_obj(x, env);
         print!(
@@ -360,31 +400,37 @@ fn display(list: &[Object], env: &mut EnvPtr) {
             }
         );
     });
-    println!();
+    print!("\n");
     std::io::stdout().flush().unwrap();
 }
 
 fn gen_rand(list: &[Object], env: &mut EnvPtr) -> EvalResult {
-    let args: Vec<Result<i32, ()>> = list.iter().map(|o| {
-        let eval = eval_obj(o, env);
-        if eval.is_err() {return Err(())}
+    let args: Vec<Result<i32, ()>> = list
+        .iter()
+        .map(|o| {
+            let eval = eval_obj(o, env);
 
-        if let Object::Int(num) = eval.unwrap() {
-            Ok(num)
-        } else {
-            Err(())
-        }
-    }).collect();
+            if eval.is_err() {
+                return Err(());
+            }
+
+            if let Object::Int(num) = eval.unwrap() {
+                Ok(num)
+            } else {
+                Err(())
+            }
+        })
+        .collect();
 
     if args.iter().any(|x| x.is_err()) {
-        return Err(format!("Invalid Range Args In Rand"))
+        Err(format!("Invalid Range Args In Rand"))
     } else {
         let args: Vec<i32> = args.iter().map(|o| o.unwrap()).collect();
         let mut rng = rand::thread_rng();
         match args.len() {
             1 => Ok(Object::Int(rng.gen_range(0..args[0]))),
             2 => Ok(Object::Int(rng.gen_range(args[0]..args[1]))),
-            _ => Err(format!("Rand Expected 1-2 Args, Received {}", args.len()))
+            _ => Err(format!("Rand Expected 1-2 Args, Received {}", args.len())),
         }
     }
 }
@@ -408,7 +454,7 @@ fn when_test() {
                             (when a 1)
                         )";
     let result = eval(program, &mut Env::new_ptr());
-    assert_eq!(result, Ok(Object::List(vec!(Object::Int(1)))))
+    assert_eq!(result.unwrap(), Object::List(vec!(Object::Int(1))))
 }
 
 #[test]
@@ -418,5 +464,22 @@ fn if_test() {
                             (if a 1 0)
                         )";
     let result = eval(program, &mut Env::new_ptr());
-    assert_eq!(result, Ok(Object::List(vec!(Object::Int(1)))))
+    assert_eq!(result.unwrap(), Object::List(vec!(Object::Int(1))))
+}
+
+#[test]
+fn fn_test() {
+    let program = "(
+                            (defn inc (x) (+ x 1))
+                            (inc 0)
+                        )";
+    let result = eval(program, &mut Env::new_ptr());
+    assert_eq!(result.unwrap(), Object::Int(1));
+
+    let program = "(
+        (defn inc (x) (+ x 1))
+        (inc (- 2 2))
+    )";
+    let result = eval(program, &mut Env::new_ptr());
+    assert_eq!(result.unwrap(), Object::Int(1));
 }
