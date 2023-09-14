@@ -14,19 +14,10 @@ where
 
 fn main() -> std::io::Result<()> {
     println!("Lank Version 0.0.1");
-    println!("Press CTRL+c to Exit");
-
-    /*
-    let filename = Path::new("history.txt");
-    let history = if filename.exists() {
-        fs::read_to_string(filename).unwrap()
-    } else {
-        File::create(filename).unwrap();
-        "".to_owned()
-    };
-    */
+    println!("Press CTRL + c to Exit");
 
     let reader = Interface::new("Lank").unwrap();
+    reader.load_history("../history.txt").unwrap_or_default();
     reader.set_prompt(PROMPT).unwrap();
 
     let mut env = Env::new_ptr();
@@ -55,9 +46,11 @@ fn main() -> std::io::Result<()> {
                 }
                 Ok(x) => println!("{x}"),
             }
+            
         }
+        reader.add_history(input);
     }
-
+    reader.save_history("../history.txt")?;
     println!("Bye :3");
     Ok(())
 }

@@ -6,7 +6,7 @@ use super::{
     parser::{parse, Object},
 };
 use rand::Rng;
-use std::io::Write;
+use std::{io::{Write, Read}, fs::File};
 
 type EvalResult = Result<Object, String>;
 
@@ -55,6 +55,7 @@ fn eval_list(list: &[Object], env: &mut EnvPtr) -> EvalResult {
                 display(&list[1..], env);
                 Ok(Object::Void)
             }
+            "run-file" => run_file(&list[1..]),
             "rand" => gen_rand(&list[1..], env),
             _ => eval_fn_call(s, &list[1..], env),
         },
@@ -247,7 +248,6 @@ fn eval_def(list: &[Object], env: &mut EnvPtr) -> EvalResult {
 fn eval_ternary(list: &[Object], env: &mut EnvPtr) -> EvalResult {
     let cond = eval_obj(&list[0], env).unwrap_or(Object::Void);
     let bool = nil(&cond);
-    println!("Cond: {cond}, Parsed as {bool}");
     if bool {
         eval_obj(&list[1], env)
     } else {
@@ -258,7 +258,6 @@ fn eval_ternary(list: &[Object], env: &mut EnvPtr) -> EvalResult {
 fn eval_when(list: &[Object], env: &mut EnvPtr) -> EvalResult {
     let cond = eval_obj(&list[0], env).unwrap_or(Object::Void);
     let bool = nil(&cond);
-    println!("Cond: {cond}, Parsed as {bool}");
     if bool {
         eval_obj(&list[1], env)
     } else {
@@ -361,29 +360,20 @@ fn defn(list: &[Object], env: &mut EnvPtr) -> EvalResult {
 
 fn eval_fn_call(name: &str, list: &[Object], env: &mut EnvPtr) -> EvalResult {
     let func = env.borrow_mut().get(name);
+    if func.is_none() {return Err(format!("{name} Is Not A Function!"))}
 
-    if func.is_none() {
-        return Err(format!("{name} Is Not A Function"))
-    } 
-
-    let (params, body) = if let Object::Func(params, body) = func.unwrap() {
-        (params, body)
-    } else {
-        return Err(format!("Invalid Function"))
-    };
-    
-    let head = &list[0];
-    let args = if let Object::List(l) = head {
-        l.clone() 
-    } else {
-        vec![head.clone()]
-    };
-
-    let mut temp_env = Env::new_extended(env.clone());
-        for (arg, param) in args.iter().zip(params.iter()) {
-            temp_env.borrow_mut().set(param, arg.clone());
+    match func.unwrap() {
+        Object::Func(params, body) => {
+            let mut temp_env = Env::new_extended(env.clone());
+            for (i, param) in params.iter().enumerate() {
+                let val = eval_obj(&list[i], env);
+                if val.is_err() {return val}
+                temp_env.borrow_mut().set(param, val.unwrap())
+            }
+            eval_obj(&Object::List(body), &mut temp_env)
         }
-        eval_obj(&Object::List(body), &mut temp_env)
+        _ => Err(format!("{name} Is Not A Function!"))
+    }
 }
 
 
@@ -433,6 +423,27 @@ fn gen_rand(list: &[Object], env: &mut EnvPtr) -> EvalResult {
             _ => Err(format!("Rand Expected 1-2 Args, Received {}", args.len())),
         }
     }
+}
+
+fn run_file(list: &[Object]) -> EvalResult {
+    let filename = if let Object::Symbol(s) = &list[0] {
+        s
+    } else {
+        return Err("Invalid Filename".to_string())
+    };
+
+    let file = File::open(filename);
+    if file.is_err() {return Err(format!("Cannot Read File {filename}"))}
+    let mut buffer = String::new();
+    file.unwrap().read_to_string(&mut buffer).unwrap();
+    
+    let env = &mut Env::new_ptr();
+
+    let begin = std::time::Instant::now();
+    let result = eval(&buffer, env);
+    let end = begin.elapsed();
+    println!("Program Duration: {end:?}");
+    result
 }
 
 #[test]
