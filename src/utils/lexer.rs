@@ -40,7 +40,7 @@ impl fmt::Display for Token {
     }
 }
 
-impl<'a> fmt::Display for NativeOp {
+impl fmt::Display for NativeOp {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Self::Binary(op) => write!(f, "{op}"),

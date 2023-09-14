@@ -1,23 +1,26 @@
 mod utils;
-use linefeed::{Interface, ReadResult};
 use utils::{env::Env, eval::eval, parser::Object};
 
-const PROMPT: &str = "Lank> ";
+use linefeed::{Interface, ReadResult};
+use std::{env, fs::File, path::Path};
 
-fn log<T>(x: T) -> T
-where
-    T: std::fmt::Display,
-{
-    println!("{x}");
-    x
-}
+const PROMPT: &str = "Lank> ";
 
 fn main() -> std::io::Result<()> {
     println!("Lank Version 0.0.1");
     println!("Press CTRL + c to Exit");
 
     let reader = Interface::new("Lank").unwrap();
-    reader.load_history("../history.txt").unwrap_or_default();
+
+    let history_path = Path::new("../history.txt");
+
+    let history_arg = env::args().next().unwrap_or("".to_string());
+    if history_path.exists() && ! matches!(history_arg.as_str(), "-c" | "--clear") {
+        reader.load_history(history_path).unwrap();
+    } else {
+        File::create("../history.txt")?;
+    }
+
     reader.set_prompt(PROMPT).unwrap();
 
     let mut env = Env::new_ptr();
@@ -28,7 +31,7 @@ fn main() -> std::io::Result<()> {
         } else if input.eq("(display env)") {
             println!("Lank> env: {:#?}", *env.clone());
         } else if input.eq("") {
-            continue
+            continue;
         } else {
             let val = eval(input.as_ref(), &mut env);
             print!("Lank> ");
@@ -46,7 +49,6 @@ fn main() -> std::io::Result<()> {
                 }
                 Ok(x) => println!("{x}"),
             }
-            
         }
         reader.add_history(input);
     }

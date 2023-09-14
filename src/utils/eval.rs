@@ -1,7 +1,7 @@
 #![allow(non_upper_case_globals)]
 
 use super::{
-    BINARY_OPS, UNARY_OPS, BOOL_OPS, lexer::NativeOp,
+    lexer::NativeOp,
     env::{Env, EnvPtr},
     parser::{parse, Object},
 };
@@ -38,9 +38,9 @@ fn eval_list(list: &[Object], env: &mut EnvPtr) -> EvalResult {
     match head {
         Object::NativeOp(op) => {
             match op {
-                NativeOp::Binary(s) => eval_binary_op(list,env),
-                NativeOp::Unary(s) => eval_unary(list, env),
-                NativeOp::Boolean(s) => eval_bool(list, env),
+                NativeOp::Binary(_s) => eval_binary_op(list,env),
+                NativeOp::Unary(_s) => eval_unary(list, env),
+                NativeOp::Boolean(_s) => eval_bool(list, env),
             }
         }
         Object::Symbol(s) => match s.as_str() {
@@ -190,10 +190,7 @@ fn eval_unary(list: &[Object], env: &mut EnvPtr) -> EvalResult {
 }
 
 fn nil(x: &Object) -> bool {
-    match x {
-        Object::Void | Object::Int(0) | Object::Bool(false) => false,
-        _ => true,
-    }
+    ! matches!(x, Object::Void | Object::Int(0) | Object::Bool(false))
 }
 
 fn eval_bool(list: &[Object], env: &mut EnvPtr) -> EvalResult {
@@ -316,7 +313,7 @@ fn eval_do(list: &[Object], env: &mut EnvPtr) -> EvalResult {
     Ok(exprs.iter().last().unwrap().clone().unwrap().clone())
 }
 
-fn eval_symbol(s: &str, env: &mut EnvPtr) -> EvalResult {
+fn eval_symbol(s: &str, env: &EnvPtr) -> EvalResult {
     let val = env.borrow_mut().get(s);
     match val {
         Some(v) => Ok(v.clone()),
@@ -367,7 +364,7 @@ fn eval_fn_call(name: &str, list: &[Object], env: &mut EnvPtr) -> EvalResult {
             let mut temp_env = Env::new_extended(env.clone());
             for (i, param) in params.iter().enumerate() {
                 let val = eval_obj(&list[i], env);
-                if val.is_err() {return val}
+                val.as_ref()?;
                 temp_env.borrow_mut().set(param, val.unwrap())
             }
             eval_obj(&Object::List(body), &mut temp_env)
@@ -390,7 +387,7 @@ fn display(list: &[Object], env: &mut EnvPtr) {
             }
         );
     });
-    print!("\n");
+    println!();
     std::io::stdout().flush().unwrap();
 }
 
@@ -413,7 +410,7 @@ fn gen_rand(list: &[Object], env: &mut EnvPtr) -> EvalResult {
         .collect();
 
     if args.iter().any(|x| x.is_err()) {
-        Err(format!("Invalid Range Args In Rand"))
+        Err("Invalid Range Args In Rand".to_string())
     } else {
         let args: Vec<i32> = args.iter().map(|o| o.unwrap()).collect();
         let mut rng = rand::thread_rng();
