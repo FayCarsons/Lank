@@ -135,10 +135,10 @@ fn parse_test() {
                 Object::Int(314),
             ]),
             Object::List(vec![
-                Object::Symbol("*".to_string()),
+                Object::NativeOp(NativeOp::Binary("*".to_string())),
                 Object::Symbol("pi".to_string()),
                 Object::List(vec![
-                    Object::Symbol("*".to_string()),
+                    Object::NativeOp(NativeOp::Binary("*".to_string())),
                     Object::Symbol("r".to_string()),
                     Object::Symbol("r".to_string()),
                 ]),

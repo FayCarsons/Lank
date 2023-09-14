@@ -106,7 +106,7 @@ fn lex_test() {
         tokens.unwrap(),
         vec![
             Token::LParen,
-            Token::Symbol("+".to_string()),
+            Token::NativeOp(NativeOp::Binary("+".to_string())),
             Token::Int(1),
             Token::Int(2),
             Token::RParen

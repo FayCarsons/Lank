@@ -482,12 +482,12 @@ fn fn_test() {
                             (inc 0)
                         )";
     let result = eval(program, &mut Env::new_ptr());
-    assert_eq!(result.unwrap(), Object::Int(1));
+    assert_eq!(result.unwrap(), Object::List(vec!(Object::Int(1))));
 
     let program = "(
         (defn inc (x) (+ x 1))
         (inc (- 2 2))
     )";
     let result = eval(program, &mut Env::new_ptr());
-    assert_eq!(result.unwrap(), Object::Int(1));
+    assert_eq!(result.unwrap(), Object::List(vec!(Object::Int(1))));
 }
