@@ -1,6 +1,7 @@
 pub mod env;
+pub mod error;
+pub mod value;
 pub mod eval;
-pub mod lexer;
 pub mod parser;
 
 const BINARY_OPS: [&str; 17] = ["+", "-", "*" , "/" , "mod" , ">" , ">=" , "<" , "<=" , "!=" , "==" , "<<" , ">>"

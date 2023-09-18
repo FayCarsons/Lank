@@ -1,5 +1,5 @@
 mod utils;
-use utils::{env::Env, eval::eval, parser::Object};
+use utils::{env::Env, eval::eval, value::Value};
 
 use linefeed::{Interface, ReadResult};
 use std::{env, fs::File, path::Path};
@@ -37,12 +37,12 @@ fn main() -> std::io::Result<()> {
             print!("Lank> ");
             match val {
                 Err(e) => println!("{e} "),
-                Ok(Object::Void) => {}
-                Ok(Object::Int(n)) => println!("{n}"),
-                Ok(Object::Bool(b)) => println!("{b}"),
-                Ok(Object::Symbol(s)) => println!("{s}"),
-                Ok(Object::Func(params, body)) => {
-                    println!("Func (");
+                Ok(Value::Void) => {}
+                Ok(Value::Int(n)) => println!("{n}"),
+                Ok(Value::Bool(b)) => println!("{b}"),
+                Ok(Value::Symbol(s)) => println!("{s}"),
+                Ok(Value::Fun(params, body)) => {
+                    println!("Fun (");
                     params.iter().for_each(|p| println!("{p} "));
                     println!(") ");
                     body.iter().for_each(|exp| println!("({exp}) "));

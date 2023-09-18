@@ -1,27 +1,29 @@
-COMMENT = _{ "/*" ~ (!"*/" ~ ANY)* ~ "*/" }
-WHITESPACE = _{ (' ' | NEWLINE ) }
+// * Zero or more
+// + One or more
 
-num = @{ int }
-    int = { ('+' | '-' ) ~ digit+ }
-    digit = {'0' .. '9'}
 
-symbol = @{ (letter | (letter ~ digit) | '_' | '\\')+ | (binary_ops | unary_ops | boolean_ops)}
-    letter = {'a' .. 'z' | 'A' .. 'Z' }
-    binary_ops = { '+'| '-'| '*' | '/' | "mod" | '>' | ">=" | '<' | "<=" | "!=" | "==" | "<<" | ">>"
-| "exp" | '&' | '|' | '^' }
-    unary_ops = { "abs" | "neg" | "bit-flip" | "not" }
-    boolean_ops = { "xor" | "eq" | "or" | "and" }
+Program = _{ SOI ~ Form* ~ EOI }
 
-string = @{ '\"' ANY+ '\"' }
+WHITESPACE = _{ " " | "\t" | NEWLINE }
+COMMENT = _{ SingleLineComment | MultilineComment }
+SingleLineComment = _{ "//" ~ (!NEWLINE ~ ANY)* ~ (NEWLINE | EOI) }
+MultilineComment = _{ "/*" ~ (!"*/" ~ ANY)* ~ "*/" }
 
-bool = @{  "true" | "false" }
+Form = { QuotedForm | NonQuotedForm }
+QuotedForm = ${ "`" ~ NonQuotedForm }
+NonQuotedForm = { "(" ~ (Form | Primitive)+ ~ ")" }
 
-some = @{ "Some(" ~ ( num | symbol | string | bool | sexpr | vexpr | qexpr ) ~ ")" }
+Vec = { "[" ~ (Form | Primitive)* ~ "]" }
+Map = { "{" ~ ((Form | Primitive) ~ (Form | Primitive))* ~ "}"}
 
-sexpr = { '(' ~ expr* ~ ')' }
-qexpr = { '{' ~ expr* ~ '}' }
-vexpr = { '[' ~ expr* ~ ']' }
+Primitive = { String | Char | Bool | Number | Symbol }
 
-expr = { num | symbol | sexpr | qexpr | vexpr }
+String = @{ "\"" ~ ANY* ~ "\"" }
+Char = @{ "\'" ~ ANY* ~ "\'"}
 
-lank = { SOI ~ expr* ~ EOI }
+Bool = @{ "true" | "false"}
+
+Number = @{ "-"? ~ ASCII_DIGIT+ ~ "."? ~ ASCII_DIGIT*}
+
+Symbol = @{ (!SymbolForbiddenChar ~ ANY)+ }
+SymbolForbiddenChar = { "\"" | ";" | "(" | ")" | WHITESPACE }

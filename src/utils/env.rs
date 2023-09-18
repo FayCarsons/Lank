@@ -1,4 +1,4 @@
-use super::parser::Object;
+use super::parser::Value;
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 pub type EnvPtr = Rc<RefCell<Env>>;
@@ -6,7 +6,7 @@ pub type EnvPtr = Rc<RefCell<Env>>;
 #[derive(Clone, Debug, PartialEq)]
 pub struct Env {
     parent: Option<Rc<RefCell<Env>>>,
-    vars: HashMap<String, Object>,
+    vars: HashMap<String, Value>,
 }
 
 impl Env {
@@ -32,7 +32,7 @@ impl Env {
         Rc::new(RefCell::new(Self::extend(parent)))
     }
 
-    pub fn get(&self, name: &str) -> Option<Object> {
+    pub fn get(&self, name: &str) -> Option<Value> {
         match self.vars.get(name) {
             Some(value) => Some(value.clone()),
             None => self
@@ -42,7 +42,7 @@ impl Env {
         }
     }
 
-    pub fn set(&mut self, name: &str, val: Object) {
+    pub fn set(&mut self, name: &str, val: Value) {
         self.vars.insert(name.to_string(), val);
     }
 }

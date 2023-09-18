@@ -1,14 +1,13 @@
 #![allow(non_upper_case_globals)]
 
 use super::{
-    lexer::NativeOp,
     env::{Env, EnvPtr},
-    parser::{parse, Object},
+    parser::parse, value::Value, BINARY_OPS, UNARY_OPS, BOOL_OPS,
 };
 use rand::Rng;
 use std::{io::{Write, Read}, fs::File};
 
-type EvalResult = Result<Object, String>;
+type EvalResult = Result<Value, String>;
 
 const ArithmeticError: &str = "Incorrect Arithmetic Args";
 
@@ -19,66 +18,62 @@ pub fn eval(program: &str, env: &mut EnvPtr) -> EvalResult {
     }
 }
 
-fn eval_obj(obj: &Object, env: &mut EnvPtr) -> EvalResult {
+fn eval_obj(obj: &Value, env: &mut EnvPtr) -> EvalResult {
     match obj {
-        Object::Symbol(s) => eval_symbol(s, env),
-        Object::List(list) => eval_list(list, env),
-        Object::Func(params, body) => Ok(Object::Func(params.clone(), body.clone())),
-        x => Ok(x.clone()),
+        Value::Symbol(s) => eval_symbol(s, env),
+        Value::Form(list) => eval_list(list, env),
+        Value::Fun(params, body) => Ok(Value::Fun(params.clone(), body.clone())),
+        x => Ok(*x),
     }
 }
 
-fn eval_list(list: &[Object], env: &mut EnvPtr) -> EvalResult {
+fn eval_list(list: &[Value], env: &mut EnvPtr) -> EvalResult {
     let head = match list.first() {
         Some(op) => op,
         None => return Err("Empty Parens".to_owned()),
     };
-    
-
-    match head {
-        Object::NativeOp(op) => {
-            match op {
-                NativeOp::Binary(_s) => eval_binary_op(list,env),
-                NativeOp::Unary(_s) => eval_unary(list, env),
-                NativeOp::Boolean(_s) => eval_bool(list, env),
-            }
-        }
-        Object::Symbol(s) => match s.as_str() {
-            "def" => eval_def(&list[1..], env),
-            "defn" => defn(&list[1..], env),
-            "if" | "?" => eval_ternary(&list[1..], env),
-            "when" => eval_when(&list[1..], env),
-            "match" => eval_match(&list[1..], env),
-            "do" => eval_do(&list[1..], env),
-            "fn" => eval_fn_def(&list[1..]),
-            "display" => {
-                display(&list[1..], env);
-                Ok(Object::Void)
-            }
-            "run-file" => run_file(&list[1..]),
-            "rand" => gen_rand(&list[1..], env),
-            _ => eval_fn_call(s, &list[1..], env),
-        },
-        _ => {
-            let mut new_list = Vec::new();
-            for obj in list {
-                let res = eval_obj(obj, env)?;
-                match res {
-                    Object::Void => {}
-                    _ => new_list.push(res),
+    if BINARY_OPS.contains(head) {
+        eval_binary_op(list, env)
+    } else if UNARY_OPS.contains(head) {
+        eval_unary(list, env)
+    } else if BOOL_OPS.contains(head) {
+        eval_bool(list, env)
+    } else {
+        match head {
+            Value::Symbol(s) => match s.as_str() {
+                "def" => eval_def(&list[1..], env),
+                "defn" => defn(&list[1..], env),
+                "if" | "?" => eval_ternary(&list[1..], env),
+                "when" => eval_when(&list[1..], env),
+                "match" => eval_match(&list[1..], env),
+                "do" => eval_do(&list[1..], env),
+                "fn" => eval_fn_def(&list[1..]),
+                "display" => {
+                    display(&list[1..], env);
+                    Ok(Value::Void)
                 }
+                "run-file" => run_file(&list[1..]),
+                "rand" => gen_rand(&list[1..], env),
+                _ => eval_fn_call(s, &list[1..], env),
+            },
+            _ => {
+                let mut new_list = Vec::new();
+                for obj in list {
+                    let res = eval_obj(&obj, env)?;
+                    match res {
+                        Value::Void => {}
+                        _ => new_list.push(res),
+                    }
+                }
+                Ok(Value::Form(new_list))
             }
-            Ok(Object::List(new_list))
         }
     }
+    
 }
 // Fix this!! could be handled much more elegantly
-fn eval_binary_op(list: &[Object], env: &mut EnvPtr) -> EvalResult {
-    let symbol = if let Object::NativeOp(NativeOp::Binary(s)) = &list[0] {
-        s.as_str()
-    } else {
-        return Err(format!("Expected Native Op got {}", list[0]))
-    };
+fn eval_binary_op(list: &[Value], env: &mut EnvPtr) -> EvalResult {
+    let Value::Symbol(symbol) = &list[0]; 
 
     let operation: fn(i32, i32) -> i32 = match symbol {
         "+" => i32::saturating_add,
@@ -128,7 +123,7 @@ fn eval_binary_op(list: &[Object], env: &mut EnvPtr) -> EvalResult {
     let res = args
         .iter()
         .map(|arg| {
-            if let Object::Int(num) = arg.as_ref().unwrap() {
+            if let Value::Int(num) = arg.as_ref().unwrap() {
                 num
             } else {
                 &0
@@ -139,44 +134,41 @@ fn eval_binary_op(list: &[Object], env: &mut EnvPtr) -> EvalResult {
 
     if let Some(result) = res {
         match symbol {
-            ">" | ">=" | "<" | "<=" | "!=" | "==" => Ok(Object::Bool(result != 0)),
-            _ => Ok(Object::Int(result)),
+            ">" | ">=" | "<" | "<=" | "!=" | "==" => Ok(Value::Bool(result != 0)),
+            _ => Ok(Value::Int(result)),
         }
     } else {
         Err(ArithmeticError.to_string())
     }
 }
 
-fn eval_unary(list: &[Object], env: &mut EnvPtr) -> EvalResult {
-    let operator = match list.first().expect("Empty Expression") {
-        Object::Symbol(s) => s.as_str(),
-        e => return Err(format!("Expected Function or Operator got {e}")),
-    };
+fn eval_unary(list: &[Value], env: &mut EnvPtr) -> EvalResult {
+    let Value::Symbol(operator) = &list[0];
 
     let operation = match operator {
-        "abs" => |o: Object| -> EvalResult {
-            if let Object::Int(num) = o {
-                Ok(Object::Int(num.abs()))
+        "abs" => |o: Value| -> EvalResult {
+            if let Value::Int(num) = o {
+                Ok(Value::Int(num.abs()))
             } else {
                 Err(ArithmeticError.to_string())
             }
         },
-        "neg" => |o: Object| -> EvalResult {
-            if let Object::Int(num) = o {
-                Ok(Object::Int(-num))
+        "neg" => |o: Value| -> EvalResult {
+            if let Value::Int(num) = o {
+                Ok(Value::Int(-num))
             } else {
                 Err(ArithmeticError.to_string())
             }
         },
-        "bit-flip" => |o: Object| -> EvalResult {
-            if let Object::Int(num) = o {
-                Ok(Object::Int(!num))
+        "bit-flip" => |o: Value| -> EvalResult {
+            if let Value::Int(num) = o {
+                Ok(Value::Int(!num))
             } else {
                 Err(ArithmeticError.to_string())
             }
         },
-        "not" => |o: Object| {
-            Ok(Object::Bool(! nil(&o)))
+        "not" => |o: Value| {
+            Ok(Value::Bool(! nil(&o)))
         },
         _ => return Err(format!("Unknown Unary Operator {operator}")),
     };
@@ -189,21 +181,20 @@ fn eval_unary(list: &[Object], env: &mut EnvPtr) -> EvalResult {
     operation(arg)
 }
 
-fn nil(x: &Object) -> bool {
-    ! matches!(x, Object::Void | Object::Int(0) | Object::Bool(false))
+fn nil(x: &Value) -> bool {
+    ! matches!(x, Value::Void | Value::Int(0) | Value::Bool(false))
 }
 
-fn eval_bool(list: &[Object], env: &mut EnvPtr) -> EvalResult {
-    let operator = match list.first().expect("Empty Parens") {
-        Object::Symbol(s) => s.as_str(),
-        e => return Err(format!("Expected Function or Operator got {e}")),
+fn eval_bool(list: &[Value], env: &mut EnvPtr) -> EvalResult {
+    let Value::Symbol(operator) = &list[0] else {
+        unreachable!()
     };
 
     let args = &list[1..=2];
     let args = args
         .iter()
         .map(|a| {
-            let val = if let Object::Symbol(s) = a {
+            let val = if let Value::Symbol(s) = a {
                 eval_symbol(s, env).unwrap()
             } else {
                 a.clone()
@@ -217,15 +208,15 @@ fn eval_bool(list: &[Object], env: &mut EnvPtr) -> EvalResult {
     };
 
     match operator {
-        "xor" => Ok(Object::Bool(lhs ^ rhs)),
-        "or" => Ok(Object::Bool(*lhs | *rhs)),
-        "eq" => Ok(Object::Bool(lhs == rhs)),
-        "and" => Ok(Object::Bool(*lhs & *rhs)),
+        "xor" => Ok(Value::Bool(lhs ^ rhs)),
+        "or" => Ok(Value::Bool(*lhs | *rhs)),
+        "eq" => Ok(Value::Bool(lhs == rhs)),
+        "and" => Ok(Value::Bool(*lhs & *rhs)),
         _ => Err(format!("Unrecognized Boolean Operator {operator}!")),
     }
 }
 
-fn eval_def(list: &[Object], env: &mut EnvPtr) -> EvalResult {
+fn eval_def(list: &[Value], env: &mut EnvPtr) -> EvalResult {
     let deff_err = Err("Invalid Def!".to_string());
 
     let [name, value] = list else {
@@ -233,17 +224,17 @@ fn eval_def(list: &[Object], env: &mut EnvPtr) -> EvalResult {
     };
 
     let name = match name {
-        Object::Symbol(s) => s,
+        Value::Symbol(s) => s,
         _ => return deff_err,
     };
 
     let value = eval_obj(value, env).unwrap();
     env.borrow_mut().set(name, value);
-    Ok(Object::Void)
+    Ok(Value::Void)
 }
 
-fn eval_ternary(list: &[Object], env: &mut EnvPtr) -> EvalResult {
-    let cond = eval_obj(&list[0], env).unwrap_or(Object::Void);
+fn eval_ternary(list: &[Value], env: &mut EnvPtr) -> EvalResult {
+    let cond = eval_obj(&list[0], env).unwrap_or(Value::Void);
     let bool = nil(&cond);
     if bool {
         eval_obj(&list[1], env)
@@ -252,25 +243,25 @@ fn eval_ternary(list: &[Object], env: &mut EnvPtr) -> EvalResult {
     }
 }
 
-fn eval_when(list: &[Object], env: &mut EnvPtr) -> EvalResult {
-    let cond = eval_obj(&list[0], env).unwrap_or(Object::Void);
+fn eval_when(list: &[Value], env: &mut EnvPtr) -> EvalResult {
+    let cond = eval_obj(&list[0], env).unwrap_or(Value::Void);
     let bool = nil(&cond);
     if bool {
         eval_obj(&list[1], env)
     } else {
-        Ok(Object::Void)
+        Ok(Value::Void)
     }
 }
 
-fn eval_match(list: &[Object], env: &mut EnvPtr) -> EvalResult {
+fn eval_match(list: &[Value], env: &mut EnvPtr) -> EvalResult {
     let var = eval_obj(&list[0], env);
 
     match var {
         Ok(val) => {
-            let rest: Vec<Object> = list[1..]
+            let rest: Vec<Value> = list[1..]
                 .iter()
                 .cloned()
-                .filter(|obj| *obj != Object::Void)
+                .filter(|obj| *obj != Value::Void)
                 .collect();
             for pair in rest.chunks(2) {
                 let [cond, expr] = pair else {
@@ -289,14 +280,14 @@ fn eval_match(list: &[Object], env: &mut EnvPtr) -> EvalResult {
         Err(e) => return Err(e),
     }
 
-    Ok(Object::Void)
+    Ok(Value::Void)
 }
 
-fn eval_do(list: &[Object], env: &mut EnvPtr) -> EvalResult {
+fn eval_do(list: &[Value], env: &mut EnvPtr) -> EvalResult {
     let exprs = list
         .iter()
         .map(|expr| {
-            if let Object::List(l) = expr {
+            if let Value::Form{_quoted, l} = expr {
                 eval_list(l, env)
             } else {
                 eval_obj(expr, env)
@@ -321,29 +312,29 @@ fn eval_symbol(s: &str, env: &EnvPtr) -> EvalResult {
     }
 }
 
-fn eval_fn_def(list: &[Object]) -> EvalResult {
-    let params: Vec<String> = if let Object::List(l) = &list[0] {
+fn eval_fn_def(list: &[Value]) -> EvalResult {
+    let params: Vec<String> = if let Value::Form{quoted: false, l} = &list[0] {
         l.iter()
             .map(|o| {
                 match o {
-                    Object::Symbol(s) => Ok(s.clone()),
-                    _ => Err(format!("invalid Func params")),
+                    Value::Symbol(s) => Ok(s.clone()),
+                    _ => Err(format!("invalid Fun params")),
                 }
                 .unwrap()
             })
             .collect()
     } else {
-        return Err("Invalid Func Params".to_string());
+        return Err("Invalid Fun Params".to_string());
     };
 
     let body = match &list[1] {
-        Object::List(list) => list.clone(),
-        _ => return Err("Invalid Func!".to_string()),
+        Value::Form{_quoted, list} => list.clone(),
+        _ => return Err("Invalid Fun!".to_string()),
     };
-    Ok(Object::Func(params, body))
+    Ok(Value::Fun(params, body))
 }
 
-fn defn(list: &[Object], env: &mut EnvPtr) -> EvalResult {
+fn defn(list: &[Value], env: &mut EnvPtr) -> EvalResult {
     let name = &list[0];
     let fun = &list[1..];
 
@@ -355,27 +346,25 @@ fn defn(list: &[Object], env: &mut EnvPtr) -> EvalResult {
     eval_def([name.clone(), fun].as_ref(), env)
 }
 
-fn eval_fn_call(name: &str, list: &[Object], env: &mut EnvPtr) -> EvalResult {
+fn eval_fn_call(name: &str, list: &[Value], env: &mut EnvPtr) -> EvalResult {
     let func = env.borrow_mut().get(name);
     if func.is_none() {return Err(format!("{name} Is Not A Function!"))}
 
     match func.unwrap() {
-        Object::Func(params, body) => {
+        Value::Fun(params, body) => {
             let mut temp_env = Env::new_extended(env.clone());
             for (i, param) in params.iter().enumerate() {
                 let val = eval_obj(&list[i], env);
                 val.as_ref()?;
                 temp_env.borrow_mut().set(param, val.unwrap())
             }
-            eval_obj(&Object::List(body), &mut temp_env)
+            eval_obj(&Value::Form(body), &mut temp_env)
         }
         _ => Err(format!("{name} Is Not A Function!"))
     }
 }
 
-
-
-fn display(list: &[Object], env: &mut EnvPtr) {
+fn display(list: &[Value], env: &mut EnvPtr) {
     print!("Lank> ");
     list.iter().for_each(|x| {
         let res = eval_obj(x, env);
@@ -391,7 +380,7 @@ fn display(list: &[Object], env: &mut EnvPtr) {
     std::io::stdout().flush().unwrap();
 }
 
-fn gen_rand(list: &[Object], env: &mut EnvPtr) -> EvalResult {
+fn gen_rand(list: &[Value], env: &mut EnvPtr) -> EvalResult {
     let args: Vec<Result<i32, ()>> = list
         .iter()
         .map(|o| {
@@ -401,7 +390,7 @@ fn gen_rand(list: &[Object], env: &mut EnvPtr) -> EvalResult {
                 return Err(());
             }
 
-            if let Object::Int(num) = eval.unwrap() {
+            if let Value::Int(num) = eval.unwrap() {
                 Ok(num)
             } else {
                 Err(())
@@ -415,15 +404,15 @@ fn gen_rand(list: &[Object], env: &mut EnvPtr) -> EvalResult {
         let args: Vec<i32> = args.iter().map(|o| o.unwrap()).collect();
         let mut rng = rand::thread_rng();
         match args.len() {
-            1 => Ok(Object::Int(rng.gen_range(0..args[0]))),
-            2 => Ok(Object::Int(rng.gen_range(args[0]..args[1]))),
+            1 => Ok(Value::Int(rng.gen_range(0..args[0]))),
+            2 => Ok(Value::Int(rng.gen_range(args[0]..args[1]))),
             _ => Err(format!("Rand Expected 1-2 Args, Received {}", args.len())),
         }
     }
 }
 
-fn run_file(list: &[Object]) -> EvalResult {
-    let filename = if let Object::Symbol(s) = &list[0] {
+fn run_file(list: &[Value]) -> EvalResult {
+    let filename = if let Value::Symbol(s) = &list[0] {
         s
     } else {
         return Err("Invalid Filename".to_string())
@@ -452,7 +441,7 @@ fn match_test() {
                                 false => 0)
                         )";
     let result = eval(program, &mut Env::new_ptr());
-    assert_eq!(result, Ok(Object::List(vec!(Object::Int(1)))))
+    assert_eq!(result, Ok(Value::Form{quoted: false, tokens: vec!(Value::Number(1.))}))
 }
 
 #[test]
@@ -462,7 +451,7 @@ fn when_test() {
                             (when a 1)
                         )";
     let result = eval(program, &mut Env::new_ptr());
-    assert_eq!(result.unwrap(), Object::List(vec!(Object::Int(1))))
+    assert_eq!(result.unwrap(), Value::Form(vec!(Value::Int(1))))
 }
 
 #[test]
@@ -472,7 +461,7 @@ fn if_test() {
                             (if a 1 0)
                         )";
     let result = eval(program, &mut Env::new_ptr());
-    assert_eq!(result.unwrap(), Object::List(vec!(Object::Int(1))))
+    assert_eq!(result.unwrap(), Value::Form(vec!(Value::Int(1))))
 }
 
 #[test]
@@ -482,12 +471,12 @@ fn fn_test() {
                             (inc 0)
                         )";
     let result = eval(program, &mut Env::new_ptr());
-    assert_eq!(result.unwrap(), Object::List(vec!(Object::Int(1))));
+    assert_eq!(result.unwrap(), Value::Form(vec!(Value::Int(1))));
 
     let program = "(
         (defn inc (x) (+ x 1))
         (inc (- 2 2))
     )";
     let result = eval(program, &mut Env::new_ptr());
-    assert_eq!(result.unwrap(), Object::List(vec!(Object::Int(1))));
+    assert_eq!(result.unwrap(), Value::Form(vec!(Value::Int(1))));
 }
