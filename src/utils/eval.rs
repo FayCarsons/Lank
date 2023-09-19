@@ -10,7 +10,7 @@ use super::{
 use rand::{thread_rng, Rng};
 use std::{
     fs::File,
-    io::{Read, Write}, collections::VecDeque,
+    io::{Read, Write}, rc::Rc,
 };
 
 const ArithmeticError: &str = "Incorrect Arithmetic Args";
@@ -27,7 +27,7 @@ fn eval_obj(obj: &Value, env: &mut EnvPtr) -> EvalResult {
         Value::Symbol(s) => eval_symbol(s, env),
         Value::Form { tokens, .. } => eval_list(tokens, env),
         //Value::Vec(tokens) => create_vec(tokens, env),
-        Value::Fun(params, body) => Ok(Value::Fun(params.clone(), body.clone())),
+        Value::Fun(params, body) => Ok(Value::Fun(params.to_owned(), body.to_owned())),
         x => Ok(x.clone()),
     }
 }
@@ -40,15 +40,15 @@ fn eval_list(list: &[Value], env: &mut EnvPtr) -> EvalResult {
 
     match head {
         Value::Symbol(s) => {
-            let s = s.as_str();
-            if BINARY_OPS.contains(&s) {
+            let s = &&**s;
+            if BINARY_OPS.contains(s) {
                 eval_binary_op(list, env)
             } else if UNARY_OPS.contains(&s) {
                 eval_unary(list, env)
             } else if BOOL_OPS.contains(&s) {
                 eval_bool(list, env)
             } else {
-                match s {
+                match s.as_ref() {
                     "def" => eval_def(&list[1..], env),
                     "defn" => defn(&list[1..], env),
                     "if" | "?" => eval_ternary(&list[1..], env),
@@ -81,7 +81,7 @@ fn eval_list(list: &[Value], env: &mut EnvPtr) -> EvalResult {
                 .collect();
             Ok(Value::Form {
                 quoted: false,
-                tokens: xs,
+                tokens: Rc::new(xs),
             })
         }
     }
@@ -93,7 +93,7 @@ fn eval_binary_op(list: &[Value], env: &mut EnvPtr) -> EvalResult {
         todo!()
     };
 
-    let operation: fn(f64, f64) -> f64 = match symbol.as_str() {
+    let operation: fn(f64, f64) -> f64 = match &**symbol {
         "+" => |a, b| a + b,
         "-" => |a, b| a - b,
         "*" => |a, b| a * b,
@@ -160,7 +160,7 @@ fn eval_binary_op(list: &[Value], env: &mut EnvPtr) -> EvalResult {
         .reduce(operation);
 
     if let Some(result) = res {
-        match symbol.as_str() {
+        match &**symbol {
             ">" | ">=" | "<" | "<=" | "!=" | "==" => Ok(Value::Bool(result != 0.)),
             _ => Ok(Value::Number(result)),
         }
@@ -174,7 +174,7 @@ fn eval_unary(list: &[Value], env: &mut EnvPtr) -> EvalResult {
         todo!()
     };
 
-    let operation = match operator.as_str() {
+    let operation = match &**operator {
         "abs" => |o: Value| -> EvalResult {
             if let Value::Number(num) = o {
                 Ok(Value::Number(num.abs()))
@@ -234,7 +234,7 @@ fn eval_bool(list: &[Value], env: &EnvPtr) -> EvalResult {
         return Err("Insufficient Condiitional Args!".to_owned());
     };
 
-    match operator.as_str() {
+    match &**operator {
         "xor" => Ok(Value::Bool(lhs ^ rhs)),
         "or" => Ok(Value::Bool(*lhs | *rhs)),
         "eq" => Ok(Value::Bool(lhs == rhs)),
@@ -298,7 +298,7 @@ fn eval_match(list: &[Value], env: &mut EnvPtr) -> EvalResult {
         Ok(val) => {
             let rest: Vec<Value> = list[1..]
                 .iter()
-                .filter(|&obj| *obj != Value::Void && *obj != Value::Symbol("=>".to_owned()))
+                .filter(|&obj| *obj != Value::Void && *obj != Value::Symbol(Rc::from("=>")))
                 .cloned()
                 .collect();
             for pair in rest.chunks(2) {
@@ -351,17 +351,17 @@ fn eval_symbol(s: &str, env: &EnvPtr) -> EvalResult {
 }
 
 fn eval_fn_def(list: &[Value]) -> EvalResult {
-    let params: Vec<String> = if let Value::Form { quoted: _, tokens } = &list[0] {
-        tokens
+    let params = if let Value::Form { quoted: _, tokens } = &list[0] {
+        Rc::new(tokens
             .iter()
             .map(|o| {
                 match o {
-                    Value::Symbol(s) => Ok(s.clone()),
+                    Value::Symbol(s) => Ok(String::from(&**s)),
                     _ => Err(format!("invalid function params")),
                 }
                 .unwrap()
             })
-            .collect()
+            .collect())
     } else {
         return Err("Invalid function params!".to_owned());
     };
@@ -463,7 +463,7 @@ fn run_file(list: &[Value]) -> EvalResult {
         return Err("Invalid Filename".to_owned());
     };
 
-    let file = File::open(filename);
+    let file = File::open(filename.as_ref());
     if file.is_err() {
         return Err(format!("Cannot Read File {filename}"));
     }
@@ -492,7 +492,7 @@ fn match_test() {
         result,
         Ok(Value::Form {
             quoted: false,
-            tokens: vec!(Value::Number(1.))
+            tokens: Rc::new(vec!(Value::Number(1.)))
         })
     )
 }
@@ -508,7 +508,7 @@ fn when_test() {
         result.unwrap(),
         Value::Form {
             quoted: false,
-            tokens: vec!(Value::Number(1.))
+            tokens: Rc::new(vec!(Value::Number(1.)))
         }
     )
 }
@@ -524,7 +524,7 @@ fn if_test() {
         result.unwrap(),
         Value::Form {
             quoted: false,
-            tokens: vec!(Value::Number(1.))
+            tokens: Rc::new(vec!(Value::Number(1.)))
         }
     )
 }
@@ -540,7 +540,7 @@ fn fn_test() {
         result.unwrap(),
         Value::Form {
             quoted: false,
-            tokens: vec!(Value::Number(1.))
+            tokens: Rc::new(vec!(Value::Number(1.)))
         }
     );
 
@@ -553,7 +553,7 @@ fn fn_test() {
         result.unwrap(),
         Value::Form {
             quoted: false,
-            tokens: vec!(Value::Number(1.))
+            tokens: Rc::new(vec!(Value::Number(1.)))
         }
     );
 }

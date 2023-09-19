@@ -7,6 +7,10 @@ use std::{env, fs::File, path::Path};
 const PROMPT: &str = "Lank> ";
 
 fn main() -> std::io::Result<()> {
+    
+    {println!("Size of Val: {}", std::mem::size_of::<Value>());}
+    
+
     println!("Lank Version 0.0.1");
     println!("Press CTRL + c to Exit");
 
@@ -15,7 +19,7 @@ fn main() -> std::io::Result<()> {
     let history_path = Path::new("../history.txt");
 
     let history_arg = env::args().next().unwrap_or("".to_string());
-    if history_path.exists() && ! matches!(history_arg.as_str(), "-c" | "--clear") {
+    if history_path.exists() && !matches!(history_arg.as_str(), "-c" | "--clear") {
         reader.load_history(history_path).unwrap();
     } else {
         File::create("../history.txt")?;

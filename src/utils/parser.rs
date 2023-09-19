@@ -3,7 +3,7 @@ use super::{
     value::{Seq, Value},
 };
 
-use std::{collections::VecDeque, sync::OnceLock};
+use std::{collections::VecDeque, sync::OnceLock, rc::Rc};
 
 pub struct Config {
     print_tokens: bool
@@ -37,23 +37,23 @@ impl FromPest for Value {
                 let tokens = tokens.iter().map(|v| v.clone().unwrap());
 
                 match rule {
-                    Rule::Vec => Value::Vec(tokens.collect::<VecDeque<Value>>()),
+                    Rule::Vec => Value::Vec(Rc::new(tokens.collect::<VecDeque<Value>>())),
                     Rule::NonQuotedForm => Value::Form {
                         quoted: false,
-                        tokens: tokens.collect::<Seq>(),
+                        tokens: Rc::new(tokens.collect::<Seq>()),
                     },
                     Rule::QuotedForm => Value::Form {
                         quoted: true,
-                        tokens: tokens.collect::<Seq>(),
+                        tokens: Rc::new(tokens.collect::<Seq>()),
                     },
                     _ => unreachable!(),
                 }
             }
-            Rule::Map => Value::String("This is a hashmap".to_owned()),
+            Rule::Map => Value::String(Rc::from("This is a hashmap")),
             Rule::Primitive => Self::from_pest(pair.into_inner().next().unwrap())?,
             Rule::Bool => Value::Bool(matches!(pair.as_str(), "true")),
-            Rule::String => Value::String(pair.as_str().to_owned()),
-            Rule::Symbol => Value::Symbol(pair.as_str().to_owned()),
+            Rule::String => Value::String(Rc::from(pair.as_str().to_owned())),
+            Rule::Symbol => Value::Symbol(Rc::from(pair.as_str().to_owned())),
             Rule::Char => Value::Char(pair.as_str().chars().nth(0).unwrap()),
             Rule::Number => {
                 let can_parse = str::parse::<f64>(pair.as_str());
