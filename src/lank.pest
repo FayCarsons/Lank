@@ -11,14 +11,15 @@ MultilineComment = _{ "/*" ~ (!"*/" ~ ANY)* ~ "*/" }
 
 Form = { QuotedForm | NonQuotedForm }
 QuotedForm = ${ "`" ~ NonQuotedForm }
-NonQuotedForm = { "(" ~ (Form | Primitive)+ ~ ")" }
+NonQuotedForm = { "(" ~ (Primitive | Form)+ ~ ")" }
 
 Vec = { "[" ~ (Form | Primitive)* ~ "]" }
 Map = { "{" ~ ((Form | Primitive) ~ (Form | Primitive))* ~ "}"}
 
 Primitive = { String | Char | Bool | Number | Symbol }
 
-String = @{ "\"" ~ ANY* ~ "\"" }
+String = @{ "\"" ~ StringInner ~ "\"" }
+StringInner = @{ (!"\"" ~ ANY)* }
 Char = @{ "\'" ~ ANY* ~ "\'"}
 
 Bool = @{ "true" | "false"}
@@ -26,4 +27,4 @@ Bool = @{ "true" | "false"}
 Number = @{ "-"? ~ ASCII_DIGIT+ ~ "."? ~ ASCII_DIGIT*}
 
 Symbol = @{ (!SymbolForbiddenChar ~ ANY)+ }
-SymbolForbiddenChar = { "\"" | ";" | "(" | ")" | WHITESPACE }
+SymbolForbiddenChar = { "\"" | ";" | "(" | ")" | "[" | "]" | "`" | WHITESPACE }

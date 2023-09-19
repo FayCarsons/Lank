@@ -2,28 +2,33 @@
 
 use super::{
     env::{Env, EnvPtr},
-    parser::parse, value::Value, BINARY_OPS, UNARY_OPS, BOOL_OPS,
+    error::EvalResult,
+    parser::parse,
+    value::{Seq, Value},
+    BINARY_OPS, BOOL_OPS, UNARY_OPS,
 };
-use rand::Rng;
-use std::{io::{Write, Read}, fs::File};
-
-type EvalResult = Result<Value, String>;
+use rand::{thread_rng, Rng};
+use std::{
+    fs::File,
+    io::{Read, Write}, collections::VecDeque,
+};
 
 const ArithmeticError: &str = "Incorrect Arithmetic Args";
 
 pub fn eval(program: &str, env: &mut EnvPtr) -> EvalResult {
     match parse(program) {
         Ok(list) => eval_obj(&list, env),
-        Err(e) => Err(format!("{e}")),
+        Err(e) => Err(e),
     }
 }
 
 fn eval_obj(obj: &Value, env: &mut EnvPtr) -> EvalResult {
     match obj {
         Value::Symbol(s) => eval_symbol(s, env),
-        Value::Form(list) => eval_list(list, env),
+        Value::Form { tokens, .. } => eval_list(tokens, env),
+        //Value::Vec(tokens) => create_vec(tokens, env),
         Value::Fun(params, body) => Ok(Value::Fun(params.clone(), body.clone())),
-        x => Ok(*x),
+        x => Ok(x.clone()),
     }
 }
 
@@ -32,79 +37,101 @@ fn eval_list(list: &[Value], env: &mut EnvPtr) -> EvalResult {
         Some(op) => op,
         None => return Err("Empty Parens".to_owned()),
     };
-    if BINARY_OPS.contains(head) {
-        eval_binary_op(list, env)
-    } else if UNARY_OPS.contains(head) {
-        eval_unary(list, env)
-    } else if BOOL_OPS.contains(head) {
-        eval_bool(list, env)
-    } else {
-        match head {
-            Value::Symbol(s) => match s.as_str() {
-                "def" => eval_def(&list[1..], env),
-                "defn" => defn(&list[1..], env),
-                "if" | "?" => eval_ternary(&list[1..], env),
-                "when" => eval_when(&list[1..], env),
-                "match" => eval_match(&list[1..], env),
-                "do" => eval_do(&list[1..], env),
-                "fn" => eval_fn_def(&list[1..]),
-                "display" => {
-                    display(&list[1..], env);
-                    Ok(Value::Void)
-                }
-                "run-file" => run_file(&list[1..]),
-                "rand" => gen_rand(&list[1..], env),
-                _ => eval_fn_call(s, &list[1..], env),
-            },
-            _ => {
-                let mut new_list = Vec::new();
-                for obj in list {
-                    let res = eval_obj(&obj, env)?;
-                    match res {
-                        Value::Void => {}
-                        _ => new_list.push(res),
+
+    match head {
+        Value::Symbol(s) => {
+            let s = s.as_str();
+            if BINARY_OPS.contains(&s) {
+                eval_binary_op(list, env)
+            } else if UNARY_OPS.contains(&s) {
+                eval_unary(list, env)
+            } else if BOOL_OPS.contains(&s) {
+                eval_bool(list, env)
+            } else {
+                match s {
+                    "def" => eval_def(&list[1..], env),
+                    "defn" => defn(&list[1..], env),
+                    "if" | "?" => eval_ternary(&list[1..], env),
+                    "when" => eval_when(&list[1..], env),
+                    "match" => eval_match(&list[1..], env),
+                    "do" => eval_do(&list[1..], env),
+                    "fn" => eval_fn_def(&list[1..]),
+                    "display" => {
+                        display(&list[1..], env);
+                        Ok(Value::Void)
                     }
+                    "run-file" => run_file(&list[1..]),
+                    "rand" => gen_rand(&list[1..], env),
+                    "nil?" => eval_nil(&list[1..], env),
+                    _ => eval_fn_call(s, &list[1..], env),
                 }
-                Ok(Value::Form(new_list))
             }
         }
+        _ => {
+            let xs: Vec<EvalResult> = list.iter().map(|v| eval_obj(v, env)).collect();
+            for x in xs.iter() {
+                if x.is_err() {
+                    return x.clone();
+                }
+            }
+            let xs = xs
+                .into_iter()
+                .map(|x| x.unwrap())
+                .filter(|x| *x != Value::Void)
+                .collect();
+            Ok(Value::Form {
+                quoted: false,
+                tokens: xs,
+            })
+        }
     }
-    
 }
+
 // Fix this!! could be handled much more elegantly
 fn eval_binary_op(list: &[Value], env: &mut EnvPtr) -> EvalResult {
-    let Value::Symbol(symbol) = &list[0]; 
+    let Value::Symbol(symbol) = &list[0] else {
+        todo!()
+    };
 
-    let operation: fn(i32, i32) -> i32 = match symbol {
-        "+" => i32::saturating_add,
-        "-" => i32::saturating_sub,
-        "*" => i32::saturating_mul,
-        "/" => i32::saturating_div,
+    let operation: fn(f64, f64) -> f64 = match symbol.as_str() {
+        "+" => |a, b| a + b,
+        "-" => |a, b| a - b,
+        "*" => |a, b| a * b,
+        "/" => |a, b| a / b,
         "mod" => |a, b| a % b,
-        ">>" => |x, shift| x.wrapping_shr(shift as u32),
-        "<<" => |x, shift| x.wrapping_shl(shift as u32),
-        "exp" => |x, pow| x.saturating_pow(pow as u32),
-        "&" => |a, b| a & b,
-        "|" => |a, b| a | b,
-        "^" => |a, b| a ^ b,
-        ">" => |a, b| if a > b { 1 } else { 0 },
+        ">>" => |x, shift| {
+            let x = (x as i64).wrapping_shr(shift as u32);
+            x as f64
+        },
+        "<<" => |x, shift| {
+            let x = (x as i64).wrapping_shl(shift as u32);
+            x as f64
+        },
+        "exp" => |x, pow| {
+            let x = (x as i64).saturating_pow(pow as u32);
+            x as f64
+        },
+        "&" => |a, b| (a as i64 & b as i64) as f64,
+        "|" => |a, b| (a as i64 | b as i64) as f64,
+        "^" => |a, b| (a as i64 ^ b as i64) as f64,
+        ">" => |a, b| if a > b { 1. } else { 0. },
         ">=" => |a, b| {
             if a >= b {
-                1
+                1.
             } else {
-                0
+                0.
             }
         },
-        "<" => |a, b| if a < b { 1 } else { 0 },
+        "<" => |a, b| if a < b { 1. } else { 0. },
         "<=" => |a, b| {
             if a < b {
-                1
+                1.
             } else {
-                0
+                0.
             }
         },
-        "!=" => |a, b| if a != b { 1 } else { 0 },
-        "==" => |a, b| if a == b { 1 } else { 0 },
+        "!=" => |a, b| if a != b { 1. } else { 0. },
+        "==" => |a, b| if a == b { 1. } else { 0. },
         _ => return Err(format!("Unrecognized Arithmmetic Operation {symbol}")),
     };
 
@@ -123,53 +150,53 @@ fn eval_binary_op(list: &[Value], env: &mut EnvPtr) -> EvalResult {
     let res = args
         .iter()
         .map(|arg| {
-            if let Value::Int(num) = arg.as_ref().unwrap() {
+            if let Value::Number(num) = arg.as_ref().unwrap() {
                 num
             } else {
-                &0
+                &0.
             }
         })
         .copied()
         .reduce(operation);
 
     if let Some(result) = res {
-        match symbol {
-            ">" | ">=" | "<" | "<=" | "!=" | "==" => Ok(Value::Bool(result != 0)),
-            _ => Ok(Value::Int(result)),
+        match symbol.as_str() {
+            ">" | ">=" | "<" | "<=" | "!=" | "==" => Ok(Value::Bool(result != 0.)),
+            _ => Ok(Value::Number(result)),
         }
     } else {
-        Err(ArithmeticError.to_string())
+        Err(ArithmeticError.to_owned())
     }
 }
 
 fn eval_unary(list: &[Value], env: &mut EnvPtr) -> EvalResult {
-    let Value::Symbol(operator) = &list[0];
+    let Value::Symbol(operator) = &list[0] else {
+        todo!()
+    };
 
-    let operation = match operator {
+    let operation = match operator.as_str() {
         "abs" => |o: Value| -> EvalResult {
-            if let Value::Int(num) = o {
-                Ok(Value::Int(num.abs()))
+            if let Value::Number(num) = o {
+                Ok(Value::Number(num.abs()))
             } else {
-                Err(ArithmeticError.to_string())
+                Err(ArithmeticError.to_owned())
             }
         },
         "neg" => |o: Value| -> EvalResult {
-            if let Value::Int(num) = o {
-                Ok(Value::Int(-num))
+            if let Value::Number(num) = o {
+                Ok(Value::Number(-num))
             } else {
-                Err(ArithmeticError.to_string())
+                Err(ArithmeticError.to_owned())
             }
         },
         "bit-flip" => |o: Value| -> EvalResult {
-            if let Value::Int(num) = o {
-                Ok(Value::Int(!num))
+            if let Value::Number(num) = o {
+                Ok(Value::Number((!(num as i64)) as f64))
             } else {
-                Err(ArithmeticError.to_string())
+                Err(ArithmeticError.to_owned())
             }
         },
-        "not" => |o: Value| {
-            Ok(Value::Bool(! nil(&o)))
-        },
+        "not" => |o: Value| Ok(Value::Bool(!nil(&o))),
         _ => return Err(format!("Unknown Unary Operator {operator}")),
     };
 
@@ -182,10 +209,10 @@ fn eval_unary(list: &[Value], env: &mut EnvPtr) -> EvalResult {
 }
 
 fn nil(x: &Value) -> bool {
-    ! matches!(x, Value::Void | Value::Int(0) | Value::Bool(false))
+    !matches!(x, Value::Void | Value::Number(0f64) | Value::Bool(false))
 }
 
-fn eval_bool(list: &[Value], env: &mut EnvPtr) -> EvalResult {
+fn eval_bool(list: &[Value], env: &EnvPtr) -> EvalResult {
     let Value::Symbol(operator) = &list[0] else {
         unreachable!()
     };
@@ -204,10 +231,10 @@ fn eval_bool(list: &[Value], env: &mut EnvPtr) -> EvalResult {
         })
         .collect::<Vec<bool>>();
     let [lhs, rhs] = &args[..] else {
-        return Err("Insufficient Condiitional Args!".to_string());
+        return Err("Insufficient Condiitional Args!".to_owned());
     };
 
-    match operator {
+    match operator.as_str() {
         "xor" => Ok(Value::Bool(lhs ^ rhs)),
         "or" => Ok(Value::Bool(*lhs | *rhs)),
         "eq" => Ok(Value::Bool(lhs == rhs)),
@@ -217,20 +244,31 @@ fn eval_bool(list: &[Value], env: &mut EnvPtr) -> EvalResult {
 }
 
 fn eval_def(list: &[Value], env: &mut EnvPtr) -> EvalResult {
-    let deff_err = Err("Invalid Def!".to_string());
+    let def_err = Err("Invalid Def!".to_owned());
 
     let [name, value] = list else {
-        return deff_err;
+        return def_err;
     };
 
     let name = match name {
         Value::Symbol(s) => s,
-        _ => return deff_err,
+        _ => return def_err,
     };
 
-    let value = eval_obj(value, env).unwrap();
+    let value = eval_obj(value, env)?;
     env.borrow_mut().set(name, value);
     Ok(Value::Void)
+}
+
+fn eval_nil(list: &[Value], env: &mut EnvPtr) -> EvalResult {
+    let val = list.first();
+    if val.is_none() {
+        return Err("No arguments passed to 'Nil?'".to_owned());
+    }
+
+    let val = eval_obj(val.unwrap(), env)?;
+
+    Ok(Value::Bool(nil(&val)))
 }
 
 fn eval_ternary(list: &[Value], env: &mut EnvPtr) -> EvalResult {
@@ -260,12 +298,12 @@ fn eval_match(list: &[Value], env: &mut EnvPtr) -> EvalResult {
         Ok(val) => {
             let rest: Vec<Value> = list[1..]
                 .iter()
+                .filter(|&obj| *obj != Value::Void && *obj != Value::Symbol("=>".to_owned()))
                 .cloned()
-                .filter(|obj| *obj != Value::Void)
                 .collect();
             for pair in rest.chunks(2) {
                 let [cond, expr] = pair else {
-                    return Err("Malformed Match Arm!".to_string());
+                    return Err("Malformed Match Arm!".to_owned());
                 };
 
                 let cond = match eval_obj(cond, env) {
@@ -287,8 +325,8 @@ fn eval_do(list: &[Value], env: &mut EnvPtr) -> EvalResult {
     let exprs = list
         .iter()
         .map(|expr| {
-            if let Value::Form{_quoted, l} = expr {
-                eval_list(l, env)
+            if let Value::Form { quoted: _, tokens } = expr {
+                eval_list(tokens, env)
             } else {
                 eval_obj(expr, env)
             }
@@ -308,28 +346,29 @@ fn eval_symbol(s: &str, env: &EnvPtr) -> EvalResult {
     let val = env.borrow_mut().get(s);
     match val {
         Some(v) => Ok(v.clone()),
-        None => Err(s.to_string()),
+        None => Err(s.to_owned()),
     }
 }
 
 fn eval_fn_def(list: &[Value]) -> EvalResult {
-    let params: Vec<String> = if let Value::Form{quoted: false, l} = &list[0] {
-        l.iter()
+    let params: Vec<String> = if let Value::Form { quoted: _, tokens } = &list[0] {
+        tokens
+            .iter()
             .map(|o| {
                 match o {
                     Value::Symbol(s) => Ok(s.clone()),
-                    _ => Err(format!("invalid Fun params")),
+                    _ => Err(format!("invalid function params")),
                 }
                 .unwrap()
             })
             .collect()
     } else {
-        return Err("Invalid Fun Params".to_string());
+        return Err("Invalid function params!".to_owned());
     };
 
     let body = match &list[1] {
-        Value::Form{_quoted, list} => list.clone(),
-        _ => return Err("Invalid Fun!".to_string()),
+        Value::Form { quoted: _, tokens } => tokens.clone(),
+        _ => return Err("Invalid function body!".to_owned()),
     };
     Ok(Value::Fun(params, body))
 }
@@ -348,7 +387,9 @@ fn defn(list: &[Value], env: &mut EnvPtr) -> EvalResult {
 
 fn eval_fn_call(name: &str, list: &[Value], env: &mut EnvPtr) -> EvalResult {
     let func = env.borrow_mut().get(name);
-    if func.is_none() {return Err(format!("{name} Is Not A Function!"))}
+    if func.is_none() {
+        return Err(format!("{name} Is Not A Function!"));
+    }
 
     match func.unwrap() {
         Value::Fun(params, body) => {
@@ -358,9 +399,15 @@ fn eval_fn_call(name: &str, list: &[Value], env: &mut EnvPtr) -> EvalResult {
                 val.as_ref()?;
                 temp_env.borrow_mut().set(param, val.unwrap())
             }
-            eval_obj(&Value::Form(body), &mut temp_env)
+            eval_obj(
+                &Value::Form {
+                    quoted: false,
+                    tokens: body,
+                },
+                &mut temp_env,
+            )
         }
-        _ => Err(format!("{name} Is Not A Function!"))
+        _ => Err(format!("{name} Is Not A Function!")),
     }
 }
 
@@ -381,33 +428,31 @@ fn display(list: &[Value], env: &mut EnvPtr) {
 }
 
 fn gen_rand(list: &[Value], env: &mut EnvPtr) -> EvalResult {
-    let args: Vec<Result<i32, ()>> = list
-        .iter()
-        .map(|o| {
-            let eval = eval_obj(o, env);
+    let mut rng = thread_rng();
 
-            if eval.is_err() {
-                return Err(());
-            }
-
-            if let Value::Int(num) = eval.unwrap() {
-                Ok(num)
-            } else {
-                Err(())
-            }
-        })
-        .collect();
-
-    if args.iter().any(|x| x.is_err()) {
-        Err("Invalid Range Args In Rand".to_string())
-    } else {
-        let args: Vec<i32> = args.iter().map(|o| o.unwrap()).collect();
-        let mut rng = rand::thread_rng();
-        match args.len() {
-            1 => Ok(Value::Int(rng.gen_range(0..args[0]))),
-            2 => Ok(Value::Int(rng.gen_range(args[0]..args[1]))),
-            _ => Err(format!("Rand Expected 1-2 Args, Received {}", args.len())),
+    let list: Vec<EvalResult> = list.iter().map(|v| eval_obj(v, env)).collect();
+    for val in list.iter() {
+        if val.is_err() {
+            return val.clone();
         }
+    }
+    let list: Seq = list.iter().map(|v| v.clone().unwrap()).collect();
+    match &list[..] {
+        [end] => {
+            let Value::Number(num) = end else {
+                return Err("Incorrect argument type in Rand".to_owned());
+            };
+            Ok(Value::Number(rng.gen_range(0..*num as usize) as f64))
+        }
+        [start, end] => {
+            let (Value::Number(st), Value::Number(en)) = (start, end) else {
+                return Err("Incorrect argument type in Rand".to_owned());
+            };
+            Ok(Value::Number(
+                rng.gen_range(*st as usize..*en as usize) as f64
+            ))
+        }
+        _ => Err("Rand requires 1-2 args!".to_owned()),
     }
 }
 
@@ -415,18 +460,20 @@ fn run_file(list: &[Value]) -> EvalResult {
     let filename = if let Value::Symbol(s) = &list[0] {
         s
     } else {
-        return Err("Invalid Filename".to_string())
+        return Err("Invalid Filename".to_owned());
     };
 
     let file = File::open(filename);
-    if file.is_err() {return Err(format!("Cannot Read File {filename}"))}
+    if file.is_err() {
+        return Err(format!("Cannot Read File {filename}"));
+    }
     let mut buffer = String::new();
     file.unwrap().read_to_string(&mut buffer).unwrap();
-    
+
     let env = &mut Env::new_ptr();
 
     let begin = std::time::Instant::now();
-    let result = eval(&buffer, env);
+    let result = eval(&format!("({buffer})"), env);
     let end = begin.elapsed();
     println!("Program Duration: {end:?}");
     result
@@ -441,7 +488,13 @@ fn match_test() {
                                 false => 0)
                         )";
     let result = eval(program, &mut Env::new_ptr());
-    assert_eq!(result, Ok(Value::Form{quoted: false, tokens: vec!(Value::Number(1.))}))
+    assert_eq!(
+        result,
+        Ok(Value::Form {
+            quoted: false,
+            tokens: vec!(Value::Number(1.))
+        })
+    )
 }
 
 #[test]
@@ -451,7 +504,13 @@ fn when_test() {
                             (when a 1)
                         )";
     let result = eval(program, &mut Env::new_ptr());
-    assert_eq!(result.unwrap(), Value::Form(vec!(Value::Int(1))))
+    assert_eq!(
+        result.unwrap(),
+        Value::Form {
+            quoted: false,
+            tokens: vec!(Value::Number(1.))
+        }
+    )
 }
 
 #[test]
@@ -461,7 +520,13 @@ fn if_test() {
                             (if a 1 0)
                         )";
     let result = eval(program, &mut Env::new_ptr());
-    assert_eq!(result.unwrap(), Value::Form(vec!(Value::Int(1))))
+    assert_eq!(
+        result.unwrap(),
+        Value::Form {
+            quoted: false,
+            tokens: vec!(Value::Number(1.))
+        }
+    )
 }
 
 #[test]
@@ -471,12 +536,24 @@ fn fn_test() {
                             (inc 0)
                         )";
     let result = eval(program, &mut Env::new_ptr());
-    assert_eq!(result.unwrap(), Value::Form(vec!(Value::Int(1))));
+    assert_eq!(
+        result.unwrap(),
+        Value::Form {
+            quoted: false,
+            tokens: vec!(Value::Number(1.))
+        }
+    );
 
     let program = "(
         (defn inc (x) (+ x 1))
         (inc (- 2 2))
     )";
     let result = eval(program, &mut Env::new_ptr());
-    assert_eq!(result.unwrap(), Value::Form(vec!(Value::Int(1))));
+    assert_eq!(
+        result.unwrap(),
+        Value::Form {
+            quoted: false,
+            tokens: vec!(Value::Number(1.))
+        }
+    );
 }

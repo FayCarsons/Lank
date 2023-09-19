@@ -1,6 +1,6 @@
-use super::primitive::Primitive;
 use std::hash::Hash;
 use core::fmt::Debug;
+use super::value::Value;
 
 pub enum LankError {
     DivideByZero,
@@ -16,7 +16,7 @@ pub enum LankError {
 }
 
 pub type LankResult<T> = std::result::Result<T, LankError>;
-pub type PrimitveResult = LankResult<Box<Primitive>>;
+pub type EvalResult = std::result::Result<Value, String>;
 
 impl<T> From<pest::error::Error<T>> for LankError
 where T: Debug + Ord + Copy + Hash, {

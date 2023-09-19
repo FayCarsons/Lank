@@ -38,7 +38,7 @@ fn main() -> std::io::Result<()> {
             match val {
                 Err(e) => println!("{e} "),
                 Ok(Value::Void) => {}
-                Ok(Value::Int(n)) => println!("{n}"),
+                Ok(Value::Number(n)) => println!("{n}"),
                 Ok(Value::Bool(b)) => println!("{b}"),
                 Ok(Value::Symbol(s)) => println!("{s}"),
                 Ok(Value::Fun(params, body)) => {
