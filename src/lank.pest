@@ -11,9 +11,9 @@ MultilineComment = _{ "/*" ~ (!"*/" ~ ANY)* ~ "*/" }
 
 Form = { QuotedForm | NonQuotedForm }
 QuotedForm = ${ "`" ~ NonQuotedForm }
-NonQuotedForm = { "(" ~ (Primitive | Form)+ ~ ")" }
+NonQuotedForm = { "(" ~ (Primitive | Vec | Map | Form)+ ~ ")" }
 
-Vec = { "[" ~ (Form | Primitive)* ~ "]" }
+Vec = ${ "[" ~ ((Form | Primitive) ~ WHITESPACE*)* ~ "]" }
 Map = { "{" ~ ((Form | Primitive) ~ (Form | Primitive))* ~ "}"}
 
 Primitive = { String | Char | Bool | Number | Symbol }

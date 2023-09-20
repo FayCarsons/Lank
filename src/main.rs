@@ -1,5 +1,8 @@
-mod utils;
-use utils::{env::Env, eval::eval, value::Value};
+pub mod utils;
+use utils::{env::Env, value::Value};
+
+mod eval;
+use eval::eval;
 
 use linefeed::{Interface, ReadResult};
 use std::{env, fs::File, path::Path};
@@ -7,9 +10,9 @@ use std::{env, fs::File, path::Path};
 const PROMPT: &str = "Lank> ";
 
 fn main() -> std::io::Result<()> {
-    
-    {println!("Size of Val: {}", std::mem::size_of::<Value>());}
-    
+    {
+        println!("Size of Val: {}", std::mem::size_of::<Value>());
+    }
 
     println!("Lank Version 0.0.1");
     println!("Press CTRL + c to Exit");

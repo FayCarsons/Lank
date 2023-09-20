@@ -1,12 +1,9 @@
-use super::{
-    error::EvalResult,
-    value::{Seq, Value},
-};
+use super::{error::EvalResult, value::Value};
 
-use std::{collections::VecDeque, sync::OnceLock, rc::Rc};
+use std::{collections::VecDeque, rc::Rc, sync::OnceLock};
 
 pub struct Config {
-    print_tokens: bool
+    print_tokens: bool,
 }
 static CONFIG: OnceLock<Config> = OnceLock::new();
 
@@ -40,11 +37,11 @@ impl FromPest for Value {
                     Rule::Vec => Value::Vec(Rc::new(tokens.collect::<VecDeque<Value>>())),
                     Rule::NonQuotedForm => Value::Form {
                         quoted: false,
-                        tokens: Rc::new(tokens.collect::<Seq>()),
+                        tokens: Rc::new(tokens.collect::<Vec<Value>>()),
                     },
                     Rule::QuotedForm => Value::Form {
                         quoted: true,
-                        tokens: Rc::new(tokens.collect::<Seq>()),
+                        tokens: Rc::new(tokens.collect::<Vec<Value>>()),
                     },
                     _ => unreachable!(),
                 }
@@ -73,19 +70,21 @@ impl FromPest for Value {
 pub fn parse(program: &str) -> EvalResult {
     //let program = program.replace("(", " ( ").replace(")", " ) ").replace("[", " [ ").replace("]", " ] ");
 
-    let print_tokens = CONFIG.get_or_init(|| {
-        let env_args: Vec<String> = std::env::args().collect();
-        Config {
-            print_tokens: env_args.contains(&"--print-ast".to_owned()) || env_args.contains(&"-p".to_owned())
-        }
-    }).print_tokens;
-    
+    let print_tokens = CONFIG
+        .get_or_init(|| {
+            let env_args: Vec<String> = std::env::args().collect();
+            Config {
+                print_tokens: env_args.contains(&"--print-ast".to_owned())
+                    || env_args.contains(&"-p".to_owned()),
+            }
+        })
+        .print_tokens;
 
     let parsed = LankParser::parse(Rule::Program, program).map_err(|e| e.to_string());
-    
+
     if print_tokens {
         for token in parsed.iter() {
-            println!("{token:#?}");
+            println!("{:#?}", *token);
         }
     }
 
