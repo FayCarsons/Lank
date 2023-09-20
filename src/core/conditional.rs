@@ -4,7 +4,7 @@ use std::rc::Rc;
 pub fn eval_ternary(list: &[Value], env: &mut EnvPtr) -> EvalResult {
     let cond = eval_value(&list[0], env).unwrap_or(Value::Void);
 
-    let bool = nil(&cond);
+    let bool = !nil(&cond);
 
     if bool {
         eval_value(&list[1], env)
@@ -16,7 +16,7 @@ pub fn eval_ternary(list: &[Value], env: &mut EnvPtr) -> EvalResult {
 pub fn eval_when(list: &[Value], env: &mut EnvPtr) -> EvalResult {
     let cond = eval_value(&list[0], env).unwrap_or(Value::Void);
 
-    let bool = nil(&cond);
+    let bool = !nil(&cond);
 
     if bool {
         eval_value(&list[1], env)
@@ -32,7 +32,7 @@ pub fn eval_match(list: &[Value], env: &mut EnvPtr) -> EvalResult {
         Ok(val) => {
             let rest: Vec<Value> = list[1..]
                 .iter()
-                .filter(|&obj| nil(obj) && *obj != Value::Symbol(Rc::from("=>")))
+                .filter(|&obj| !nil(obj) && *obj != Value::Symbol(Rc::from("=>")))
                 .cloned()
                 .collect();
 

@@ -27,14 +27,14 @@ pub fn eval_nil(list: &[Value], env: &mut EnvPtr) -> EvalResult {
 
     let val = eval_value(val.unwrap(), env)?;
 
-    Ok(Value::Bool(nil(&val)))
+    Ok(Value::Bool(!nil(&val)))
 }
 
 pub fn eval_do(list: &[Value], env: &mut EnvPtr) -> EvalResult {
     let exprs = list
         .iter()
         .map(|expr| {
-            if let Value::Form {tokens, .. } = expr {
+            if let Value::Form { tokens, .. } = expr {
                 eval_form(tokens, env)
             } else {
                 eval_value(expr, env)
@@ -58,11 +58,9 @@ pub fn eval_fn_def(list: &[Value]) -> EvalResult {
         Rc::new(
             tokens
                 .iter()
-                .map(|o| {
-                    match o {
-                        Value::Symbol(s) => Ok(String::from(&**s)),
-                        _ => Err(format!("Invalid function params")),
-                    }
+                .map(|o| match o {
+                    Value::Symbol(s) => Ok(String::from(&**s)),
+                    _ => Err(format!("Invalid function params")),
                 })
                 .collect::<Result<Vec<String>, String>>()?,
         )
@@ -80,7 +78,7 @@ pub fn eval_fn_def(list: &[Value]) -> EvalResult {
 pub fn defn(list: &[Value], env: &mut EnvPtr) -> EvalResult {
     let spl = list.split_first();
     if spl.is_none() {
-        return Err("invalid defn!".to_owned())
+        return Err("invalid defn!".to_owned());
     }
 
     let (name, fun) = spl.unwrap();
@@ -95,7 +93,7 @@ pub fn defn(list: &[Value], env: &mut EnvPtr) -> EvalResult {
 
 pub fn eval_fn_call(name: &str, list: &[Value], env: &mut EnvPtr) -> EvalResult {
     let func = env.borrow_mut().get(name);
-    
+
     if func.is_none() {
         return Err(format!("{name} Is Not A Function!"));
     }
@@ -103,10 +101,14 @@ pub fn eval_fn_call(name: &str, list: &[Value], env: &mut EnvPtr) -> EvalResult 
     match func.unwrap() {
         Value::Fun(params, body) => {
             let mut temp_env = Env::new_extended(env.clone());
-            let vals = list.iter().map(|v| eval_value(v, env)).collect::<Result<Vec<Value>, String>>()?;
-            params.iter().zip(vals.iter()).for_each(|(param, val)| {
-                temp_env.borrow_mut().set(param, val.clone())
-            });
+            let vals = list
+                .iter()
+                .map(|v| eval_value(v, env))
+                .collect::<Result<Vec<Value>, String>>()?;
+            params
+                .iter()
+                .zip(vals.iter())
+                .for_each(|(param, val)| temp_env.borrow_mut().set(param, val.clone()));
             eval_value(
                 &Value::Form {
                     quoted: false,

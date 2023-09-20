@@ -17,6 +17,7 @@ pub enum LankError {
 
 pub type LankResult<T> = std::result::Result<T, LankError>;
 pub type EvalResult = std::result::Result<Value, String>;
+pub type IterResult = Result<Vec<Value>, String>;
 
 impl<T> From<pest::error::Error<T>> for LankError
 where

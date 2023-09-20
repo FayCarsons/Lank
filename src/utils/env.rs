@@ -45,4 +45,22 @@ impl Env {
     pub fn set(&mut self, name: &str, val: Value) {
         self.vars.insert(name.to_string(), val);
     }
+
+    pub fn merge(&self, other: Env) -> Self {
+        Env {
+            vars: self
+                .vars
+                .iter()
+                .chain(other.vars.iter())
+                .map(|(k, v)| (k.clone(), v.clone()))
+                .collect(),
+            parent: if let Some(p) = &self.parent {
+                Some(p.clone())
+            } else if let Some(p) = other.parent {
+                Some(p)
+            } else {
+                None
+            },
+        }
+    }
 }

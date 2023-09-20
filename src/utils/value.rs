@@ -1,4 +1,9 @@
-use std::{collections::VecDeque, fmt, rc::Rc};
+use std::{
+    collections::VecDeque,
+    fmt,
+    ops::{FromResidual, Try},
+    rc::Rc,
+};
 
 pub type Seq = Rc<Vec<Value>>;
 pub type Vector = Rc<VecDeque<Value>>;
@@ -10,6 +15,8 @@ pub enum Form {
 }
 
 impl Value {
+    pub const NIL: Value = Value::Void;
+
     pub fn new_unquoted(tokens: Vec<Value>) -> Self {
         Self::Form {
             quoted: false,
@@ -30,6 +37,21 @@ pub enum Value {
     Vec(Vector),
     Map(Seq),
     Fun(Rc<Vec<String>>, Rc<Vec<Value>>),
+}
+
+impl From<Rc<Vec<Value>>> for Value {
+    fn from(ptr: Rc<Vec<Value>>) -> Value {
+        Value::Form {
+            quoted: false,
+            tokens: ptr,
+        }
+    }
+}
+
+impl AsRef<Value> for Value {
+    fn as_ref(&self) -> &Self {
+        &self
+    }
 }
 
 impl fmt::Display for Value {

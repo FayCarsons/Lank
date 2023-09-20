@@ -6,9 +6,31 @@ use std::{
     rc::Rc,
 };
 
-use super::{eval, eval_value, Env, EnvPtr, EvalResult, Value};
+use crate::utils::error::IterResult;
+
+use super::{eval, eval_form, eval_value, Env, EnvPtr, EvalResult, Value};
 
 const ArithmeticError: &str = "Incorrect Arithmetic Args";
+
+pub fn eval_lambda_call(
+    params: &Rc<Vec<String>>,
+    body: &Rc<Vec<Value>>,
+    args: &[Value],
+    env: &mut EnvPtr,
+) -> EvalResult {
+    let args = args
+        .iter()
+        .map(|v| eval_value(v, env))
+        .collect::<IterResult>()?;
+
+    let mut temp_env = Env::new_extended(env.clone());
+
+    params
+        .iter()
+        .zip(args.iter())
+        .for_each(|(param, val)| temp_env.borrow_mut().set(param, val.clone()));
+    eval_form(body, &mut temp_env)
+}
 
 // Fix this!! could be handled much more elegantly
 pub fn eval_binary_op(list: &[Value], env: &mut EnvPtr) -> EvalResult {
@@ -64,7 +86,6 @@ pub fn eval_binary_op(list: &[Value], env: &mut EnvPtr) -> EvalResult {
         .map(|a| eval_value(a, env))
         .collect::<Result<Vec<Value>, String>>()?;
 
-
     let res = args
         .into_iter()
         .map(|arg| {
@@ -90,7 +111,7 @@ pub fn eval_unary(list: &[Value], env: &mut EnvPtr) -> EvalResult {
     let head = &list[0];
 
     let Value::Symbol(operator) = head else {
-        return Err(format!("Invalid unary function {head}"))
+        return Err(format!("Invalid unary function {head}"));
     };
 
     let operation = match &**operator {
@@ -115,7 +136,7 @@ pub fn eval_unary(list: &[Value], env: &mut EnvPtr) -> EvalResult {
                 Err(ArithmeticError.to_owned())
             }
         },
-        "not" => |o: Value| Ok(Value::Bool(!nil(&o))),
+        "not" => |o: Value| Ok(Value::Bool(nil(&o))),
         _ => return Err(format!("Unknown Unary Operator {operator}")),
     };
 
@@ -125,36 +146,38 @@ pub fn eval_unary(list: &[Value], env: &mut EnvPtr) -> EvalResult {
 }
 
 pub fn nil(x: &Value) -> bool {
-    !matches!(x, Value::Void | Value::Number(0f64) | Value::Bool(false))
+    matches!(x, Value::Void | Value::Number(0f64) | Value::Bool(false))
 }
 
 // IMPLEMENT ARBITRARY ARITIES
 pub fn eval_bool(list: &[Value], env: &mut EnvPtr) -> EvalResult {
     let head = &list[0];
-    
+
     let Value::Symbol(operator) = head else {
-        return Err(format!("Invalid boolean function {head}"))
+        return Err(format!("Invalid boolean function {head}"));
     };
 
-    let args = &list[1..=2];
+    let args = &list[1..];
+
     let args = args
-        .iter()
+        .into_iter()
         .map(|a| eval_value(a, env))
         .collect::<Result<Vec<Value>, String>>()?;
+
     let [lhs, rhs] = &args[..] else {
-        return Err("Insufficient Condiitional Args!".to_owned());
+        return Err("Invalid args for boolean fn!".to_owned())
     };
 
     let (lhs, rhs) = match (lhs, rhs) {
         (Value::Bool(a), Value::Bool(b)) => (a, b),
-        _ => return Err("Incorrect args for boolean function".to_owned())
+        _ => return Err("Incorrect args for boolean function".to_owned()),
     };
 
     match &**operator {
         "xor" => Ok(Value::Bool(lhs ^ rhs)),
-        "or" => Ok(Value::Bool(*lhs | *rhs)),
+        "or" => Ok(Value::Bool(lhs | rhs)),
         "eq" => Ok(Value::Bool(lhs == rhs)),
-        "and" => Ok(Value::Bool(*lhs & *rhs)),
+        "and" => Ok(Value::Bool(lhs & rhs)),
         _ => Err(format!("Unrecognized Boolean Operator {operator}!")),
     }
 }

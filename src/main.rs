@@ -1,8 +1,10 @@
+#![feature(iterator_try_reduce)]
+#![feature(try_trait_v2)]
 pub mod utils;
 use utils::{env::Env, value::Value};
 
-mod eval;
-use eval::eval;
+mod core;
+use core::eval;
 
 use linefeed::{Interface, ReadResult};
 use std::{env, fs::File, path::Path};
