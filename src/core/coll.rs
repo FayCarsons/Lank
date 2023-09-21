@@ -1,6 +1,18 @@
 use std::{collections::VecDeque, rc::Rc};
+use rand::seq::index::sample;
+
+use rand::{thread_rng, seq::SliceRandom};
 
 use super::{control::eval_symbol, eval_form, eval_value, EnvPtr, EvalResult, Value};
+
+pub fn make_coll(coll_type: &str, list: &[Value], env: &mut EnvPtr) -> EvalResult {
+    let coll = match coll_type {
+        "vec" => Value::from(list.iter().map(|v| eval_value(v, env)).collect::<Result<VecDeque<Value>, String>>()?),
+        "list" => Value::from(list.iter().map(|v| eval_value(v, env)).collect::<Result<Vec<Value>, String>>()?),
+        _ => unreachable!()
+    };
+    Ok(coll)
+}
 
 pub fn eval_nth(list: &[Value], env: &mut EnvPtr) -> EvalResult {
     let [coll, idx] = &list
@@ -41,13 +53,41 @@ pub fn eval_nth(list: &[Value], env: &mut EnvPtr) -> EvalResult {
     })
 }
 
+pub fn rand_nth(list: &[Value], env: &mut EnvPtr) -> EvalResult {
+    let coll = eval_value(&list[0], env)?;
+    
+    let elem = match coll {
+        Value::Form{tokens, ..} => {
+            let res = tokens.choose(&mut thread_rng());
+            if res.is_none() {
+                return Err("Empty coll!".to_owned())
+            }
+            res.unwrap().clone()
+        },
+        Value::Vec(vec) => {
+            let vec = Vec::from_iter(vec.iter().cloned());
+            let res =  vec.choose(&mut thread_rng());
+            if res.is_none() {
+                return Err("Empty coll!".to_owned())
+            }
+            res.unwrap().clone()
+        }
+        Value::String(s) => {
+            let res = s.as_bytes().choose(&mut thread_rng());
+            if res.is_none() {
+                return Err("Empty coll!".to_owned())
+            }
+            Value::Char(char::from(*res.unwrap()))
+        }
+        _ => return Err(format!("Expected coll got {coll}"))
+    };
+
+    Ok(elem.clone())
+}
+
 pub fn eval_first(list: &[Value], env: &mut EnvPtr) -> EvalResult {
     let head = &list[0];
-    let coll = if let Value::Symbol(_s) = head {
-        eval_value(head, env)?
-    } else {
-        head.clone()
-    };
+    let coll = eval_value(head, env)?;
 
     let res = match coll {
         Value::Form { quoted, tokens } => {
@@ -76,11 +116,7 @@ pub fn eval_first(list: &[Value], env: &mut EnvPtr) -> EvalResult {
 
 pub fn eval_second(list: &[Value], env: &mut EnvPtr) -> EvalResult {
     let head = &list[0];
-    let coll = if let Value::Symbol(_s) = head {
-        eval_value(head, env)?
-    } else {
-        head.clone()
-    };
+    let coll = eval_value(head, env)?;
 
     let res = match coll {
         Value::Form { quoted, tokens } => {
@@ -109,11 +145,7 @@ pub fn eval_second(list: &[Value], env: &mut EnvPtr) -> EvalResult {
 
 pub fn eval_last(list: &[Value], env: &mut EnvPtr) -> EvalResult {
     let head = &list[0];
-    let coll = if let Value::Symbol(_s) = head {
-        eval_value(head, env)?
-    } else {
-        head.clone()
-    };
+    let coll = eval_value(head, env)?;
 
     let res = match coll {
         Value::Form { quoted, tokens } => {
@@ -142,11 +174,7 @@ pub fn eval_last(list: &[Value], env: &mut EnvPtr) -> EvalResult {
 
 pub fn eval_rest(list: &[Value], env: &mut EnvPtr) -> EvalResult {
     let head = &list[0];
-    let coll = if let Value::Symbol(_s) = head {
-        eval_value(head, env)?
-    } else {
-        head.clone()
-    };
+    let coll = eval_value(head, env)?;
 
     let res = match coll {
         Value::Form { quoted, tokens } => {
@@ -314,6 +342,8 @@ pub fn eval_map(list: &[Value], env: &mut EnvPtr) -> EvalResult {
 
     let coll = if let Value::Symbol(s) = coll {
         eval_symbol(s, env)?
+    } else if let Value::Form{tokens, ..} = coll {
+        eval_form(tokens, env)?
     } else {
         coll.clone()
     };
@@ -359,6 +389,8 @@ pub fn eval_reduce(list: &[Value], env: &mut EnvPtr) -> EvalResult {
 
     let coll = if let Value::Symbol(s) = coll {
         eval_symbol(s, env)?
+    } else if let Value::Form{tokens, ..} = coll {
+        eval_form(tokens, env)?
     } else {
         coll.clone()
     };
@@ -430,7 +462,11 @@ pub fn eval_apply(list: &[Value], env: &mut EnvPtr) -> EvalResult {
         }
 
         Value::Form{tokens, ..} => {
-            tokens.to_vec()
+            match eval_form(&tokens, env)? {
+                Value::Form{tokens,..} => tokens.to_vec(),
+                Value::Vec(v) => Vec::from(v.iter().cloned().collect::<Vec<Value>>()),
+                _ => return Err(format!("Apply expected coll got {try_coll}"))
+            }
         } 
 
         _ => return Err(format!("Apply expected coll got {try_coll}"))

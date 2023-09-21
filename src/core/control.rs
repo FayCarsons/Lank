@@ -120,3 +120,29 @@ pub fn eval_fn_call(name: &str, list: &[Value], env: &mut EnvPtr) -> EvalResult 
         _ => Err(format!("{name} Is Not A Function!")),
     }
 }
+
+pub fn eval_let(list: &[Value], env: &mut EnvPtr) -> EvalResult {
+    let [ref binding_form, ref body] = list[..] else {
+        return Err("Let requires binding vector and body".to_owned())
+    };
+
+    let mut temp_env = Env::new_extended(env.clone());
+
+    let Value::Vec(bindings) = binding_form else {
+        return Err("Syntax error".to_owned())
+    };
+
+    let bindings = bindings.iter().collect::<Vec<&Value>>();
+    bindings.chunks(2).try_for_each(|slice| -> Result<(), String> {
+        let [var, val] = *slice else {
+            return Err("Syntax error!".to_owned())
+        };
+
+        let res = eval_value(val, env)?;
+
+        eval_def(&[var.clone(), res], &mut temp_env)?;
+        Ok(())
+    })?;
+
+    eval_value(&body, &mut temp_env)
+} 

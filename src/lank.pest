@@ -13,8 +13,8 @@ Form = { QuotedForm | NonQuotedForm }
 QuotedForm = ${ "`" ~ NonQuotedForm }
 NonQuotedForm = { "(" ~ (Primitive | Vec | Map | Form)+ ~ ")" }
 
-Vec = ${ "[" ~ ((Form | Primitive) ~ WHITESPACE*)* ~ "]" }
-Map = { "{" ~ ((Form | Primitive) ~ (Form | Primitive))* ~ "}"}
+Vec = { "[" ~ ((Form | Primitive | Vec) ~ WHITESPACE*)* ~ "]" }
+Map = { "{" ~ ((Form | Primitive | Vec) ~ (Form | Primitive))* ~ "}"}
 
 Primitive = { String | Char | Bool | Number | Symbol }
 

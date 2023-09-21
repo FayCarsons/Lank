@@ -61,6 +61,7 @@ fn eval_form(list: &[Value], env: &mut EnvPtr) -> EvalResult {
             match s {
                 "def" => eval_def(&list[1..], env),
                 "defn" => defn(&list[1..], env),
+                "let" => eval_let(&list[1..], env),
                 "if" | "?" => eval_ternary(&list[1..], env),
                 "when" => eval_when(&list[1..], env),
                 "match" => eval_match(&list[1..], env),
@@ -72,8 +73,10 @@ fn eval_form(list: &[Value], env: &mut EnvPtr) -> EvalResult {
                 }
                 "run-file" => run_file(&list[1..]),
                 "rand" => gen_rand(&list[1..], env),
+                "rand-nth" => rand_nth(&list[1..], env),
                 "nil?" => eval_nil(&list[1..], env),
                 "nth" => eval_nth(&list[1..], env),
+                "list" | "vec" => make_coll(s, &list[1..], env),
                 "first" => eval_first(&list[1..], env),
                 "second" => eval_second(&list[1..], env),
                 "last" => eval_last(&list[1..], env),
@@ -201,3 +204,4 @@ fn fn_test() {
         }
     );
 }
+

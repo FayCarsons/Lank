@@ -1,12 +1,12 @@
 use std::{
-    collections::VecDeque,
+    collections::{VecDeque, HashMap},
     fmt,
-    ops::{FromResidual, Try},
     rc::Rc,
 };
 
 pub type Seq = Rc<Vec<Value>>;
 pub type Vector = Rc<VecDeque<Value>>;
+pub type Map = Box<HashMap<Value, Value>>;
 
 pub enum Form {
     Quoted(Seq),
@@ -40,11 +40,23 @@ pub enum Value {
 }
 
 impl From<Rc<Vec<Value>>> for Value {
-    fn from(ptr: Rc<Vec<Value>>) -> Value {
+    fn from(ptr: Rc<Vec<Self>>) -> Self {
         Value::Form {
             quoted: false,
             tokens: ptr,
         }
+    }
+}
+
+impl From<Vec<Value>> for Value {
+    fn from(coll: Vec<Self>) -> Self {
+        Value::Form{quoted: false, tokens: Rc::new(coll)}
+    }
+}
+
+impl From<VecDeque<Value>> for Value {
+    fn from(coll: VecDeque<Self>) -> Self {
+        Value::Vec(Rc::new(coll))
     }
 }
 
@@ -53,6 +65,7 @@ impl AsRef<Value> for Value {
         &self
     }
 }
+
 
 impl fmt::Display for Value {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {

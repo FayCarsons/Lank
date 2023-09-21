@@ -183,7 +183,6 @@ pub fn eval_bool(list: &[Value], env: &mut EnvPtr) -> EvalResult {
 }
 
 pub fn display(list: &[Value], env: &mut EnvPtr) {
-    print!("Lank> ");
     list.iter().for_each(|x| {
         let res = eval_value(x, env);
         print!(

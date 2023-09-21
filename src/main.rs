@@ -51,9 +51,9 @@ fn main() -> std::io::Result<()> {
                 Ok(Value::Bool(b)) => println!("{b}"),
                 Ok(Value::Symbol(s)) => println!("{s}"),
                 Ok(Value::Fun(params, body)) => {
-                    println!("Fun (");
+                    print!("Fun (");
                     params.iter().for_each(|p| println!("{p} "));
-                    println!(") ");
+                    print!(") ");
                     body.iter().for_each(|exp| println!("({exp}) "));
                 }
                 Ok(x) => println!("{x}"),
