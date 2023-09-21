@@ -9,6 +9,12 @@ pub struct Env {
     vars: HashMap<String, Value>,
 }
 
+impl Default for Env {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Env {
     pub fn new() -> Self {
         Env {
@@ -50,17 +56,13 @@ impl Env {
         Env {
             vars: self
                 .vars
-                .iter()
-                .chain(other.vars.iter())
-                .map(|(k, v)| (k.clone(), v.clone()))
+                .clone()
+                .into_iter()
+                .chain(other.vars.into_iter())
                 .collect(),
             parent: if let Some(p) = &self.parent {
                 Some(p.clone())
-            } else if let Some(p) = other.parent {
-                Some(p)
-            } else {
-                None
-            },
+            } else { other.parent },
         }
     }
 }

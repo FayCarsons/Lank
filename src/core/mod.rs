@@ -18,9 +18,9 @@ use coll::*;
 use control::*;
 
 use self::{
-    conditional::{eval_match, eval_ternary, eval_when},
-    control::{defn, eval_def, eval_do, eval_fn_call, eval_fn_def, eval_nil},
-    fun::{display, eval_binary_op, eval_bool, eval_lambda_call, eval_unary, gen_rand, run_file},
+    conditional::*,
+    control::*,
+    fun::*,
 };
 
 pub fn eval(program: &str, env: &mut EnvPtr) -> EvalResult {
@@ -63,14 +63,15 @@ fn eval_form(list: &[Value], env: &mut EnvPtr) -> EvalResult {
                 "defn" => defn(&list[1..], env),
                 "let" => eval_let(&list[1..], env),
                 "if" | "?" => eval_ternary(&list[1..], env),
+                "if-let" => eval_if_let(&list[1..], env),
+                "when-let" => eval_when_let(&list[1..], env),
+                "if-not" => eval_if_not(&list[1..], env),
+                "when-not" => eval_when_not(&list[1..], env),
                 "when" => eval_when(&list[1..], env),
                 "match" => eval_match(&list[1..], env),
                 "do" => eval_do(&list[1..], env),
                 "fn" => eval_fn_def(&list[1..]),
-                "display" => {
-                    display(&list[1..], env);
-                    Ok(Value::Void)
-                }
+                "display" => display(&list[1..], env),
                 "run-file" => run_file(&list[1..]),
                 "rand" => gen_rand(&list[1..], env),
                 "rand-nth" => rand_nth(&list[1..], env),

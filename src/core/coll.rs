@@ -1,5 +1,5 @@
 use std::{collections::VecDeque, rc::Rc};
-use rand::seq::index::sample;
+
 
 use rand::{thread_rng, seq::SliceRandom};
 
@@ -27,13 +27,11 @@ pub fn eval_nth(list: &[Value], env: &mut EnvPtr) -> EvalResult {
         Value::Form { quoted, tokens } => {
             if *quoted {
                 return Err("Cannot index quoted form!".to_owned());
+            } else if let Value::Number(num) = idx {
+                let res = tokens.get(*num as usize);
+                res
             } else {
-                if let Value::Number(num) = idx {
-                    let res = tokens.get(*num as usize);
-                    res
-                } else {
-                    return Err(format!("Expected number index, got {idx}"));
-                }
+                return Err(format!("Expected number index, got {idx}"));
             }
         }
         Value::Vec(vector) => {
@@ -93,12 +91,10 @@ pub fn eval_first(list: &[Value], env: &mut EnvPtr) -> EvalResult {
         Value::Form { quoted, tokens } => {
             if quoted {
                 return Err("Cannot index quoted form!".to_owned());
+            } else if let Some(val) = tokens.first() {
+                val.clone()
             } else {
-                if let Some(val) = tokens.first() {
-                    val.clone()
-                } else {
-                    Value::Void
-                }
+                Value::Void
             }
         }
         Value::Vec(vector) => {
@@ -122,12 +118,10 @@ pub fn eval_second(list: &[Value], env: &mut EnvPtr) -> EvalResult {
         Value::Form { quoted, tokens } => {
             if quoted {
                 return Err("Cannot index quoted form!".to_owned());
+            } else if let Some(val) = tokens.get(1) {
+                val.clone()
             } else {
-                if let Some(val) = tokens.get(1) {
-                    val.clone()
-                } else {
-                    Value::Void
-                }
+                Value::Void
             }
         }
         Value::Vec(vector) => {
@@ -151,12 +145,10 @@ pub fn eval_last(list: &[Value], env: &mut EnvPtr) -> EvalResult {
         Value::Form { quoted, tokens } => {
             if quoted {
                 return Err("Cannot index quoted form!".to_owned());
+            } else if let Some(val) = tokens.last() {
+                val.clone()
             } else {
-                if let Some(val) = tokens.last() {
-                    val.clone()
-                } else {
-                    Value::Void
-                }
+                Value::Void
             }
         }
         Value::Vec(vector) => {
@@ -208,18 +200,16 @@ pub fn eval_split(list: &[Value], env: &mut EnvPtr) -> Result<(Value, Value), St
         Value::Form { quoted, tokens } => {
             if quoted {
                 return Err("Cannot index quoted form!".to_owned());
+            } else if let Some((first, rest)) = tokens.split_first() {
+                (
+                    first.clone(),
+                    Value::Form {
+                        quoted: false,
+                        tokens: Rc::new(rest.to_vec()),
+                    },
+                )
             } else {
-                if let Some((first, rest)) = tokens.split_first() {
-                    (
-                        first.clone(),
-                        Value::Form {
-                            quoted: false,
-                            tokens: Rc::new(rest.to_vec()),
-                        },
-                    )
-                } else {
-                    (Value::Void, Value::Void)
-                }
+                (Value::Void, Value::Void)
             }
         }
         Value::Vec(vector) => {
@@ -366,7 +356,7 @@ pub fn eval_map(list: &[Value], env: &mut EnvPtr) -> EvalResult {
         }
         Value::Form { quoted, tokens } => {
             if quoted {
-                return Err("Cannot evaluate quoted form!".to_owned());
+                Err("Cannot evaluate quoted form!".to_owned())
             } else {
                 let res = tokens
                     .iter()
@@ -374,11 +364,11 @@ pub fn eval_map(list: &[Value], env: &mut EnvPtr) -> EvalResult {
                     .collect::<Result<Vec<Value>, String>>()?;
                 Ok(Value::Form {
                     quoted: false,
-                    tokens: Rc::new(res.into()),
+                    tokens: Rc::new(res),
                 })
             }
         }
-        _ => return Err("Map expected coll!".to_owned()),
+        _ => Err("Map expected coll!".to_owned()),
     }
 }
 
@@ -409,13 +399,13 @@ pub fn eval_reduce(list: &[Value], env: &mut EnvPtr) -> EvalResult {
         }
         Value::Form { quoted, tokens } => {
             if quoted {
-                return Err("Cannot evaluate quoted form!".to_owned());
+                Err("Cannot evaluate quoted form!".to_owned())
             } else {
                 let mut it = tokens.iter().cloned();
                 Ok(try_fold_val(&mut it, &fun, env)?)
             }
         }
-        _ => return Err("Map expected coll!".to_owned()),
+        _ => Err("Map expected coll!".to_owned()),
     }
 }
 
@@ -424,7 +414,7 @@ pub fn try_fold_val(
     fun: &Value,
     env: &mut EnvPtr,
 ) -> EvalResult {
-    let mut accum = match iter.nth(0) {
+    let mut accum = match iter.next() {
         Some(v) => v,
         None => return Err("Not enough args for reduce!".to_owned())
     };
@@ -462,9 +452,9 @@ pub fn eval_apply(list: &[Value], env: &mut EnvPtr) -> EvalResult {
         }
 
         Value::Form{tokens, ..} => {
-            match eval_form(&tokens, env)? {
+            match eval_form(tokens, env)? {
                 Value::Form{tokens,..} => tokens.to_vec(),
-                Value::Vec(v) => Vec::from(v.iter().cloned().collect::<Vec<Value>>()),
+                Value::Vec(v) => v.iter().cloned().collect::<Vec<Value>>(),
                 _ => return Err(format!("Apply expected coll got {try_coll}"))
             }
         } 

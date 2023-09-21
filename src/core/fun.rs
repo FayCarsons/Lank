@@ -145,6 +145,7 @@ pub fn eval_unary(list: &[Value], env: &mut EnvPtr) -> EvalResult {
     operation(arg)
 }
 
+// TODO figure out float nil, maybe epsilon ?
 pub fn nil(x: &Value) -> bool {
     matches!(x, Value::Void | Value::Number(0f64) | Value::Bool(false))
 }
@@ -160,7 +161,7 @@ pub fn eval_bool(list: &[Value], env: &mut EnvPtr) -> EvalResult {
     let args = &list[1..];
 
     let args = args
-        .into_iter()
+        .iter()
         .map(|a| eval_value(a, env))
         .collect::<Result<Vec<Value>, String>>()?;
 
@@ -182,7 +183,7 @@ pub fn eval_bool(list: &[Value], env: &mut EnvPtr) -> EvalResult {
     }
 }
 
-pub fn display(list: &[Value], env: &mut EnvPtr) {
+pub fn display(list: &[Value], env: &mut EnvPtr) -> EvalResult {
     list.iter().for_each(|x| {
         let res = eval_value(x, env);
         print!(
@@ -195,6 +196,7 @@ pub fn display(list: &[Value], env: &mut EnvPtr) {
     });
     println!();
     std::io::stdout().flush().unwrap();
+    Ok(Value::Void)
 }
 
 pub fn gen_rand(list: &[Value], env: &mut EnvPtr) -> EvalResult {

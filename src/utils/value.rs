@@ -60,9 +60,33 @@ impl From<VecDeque<Value>> for Value {
     }
 }
 
+impl From<Rc<VecDeque<Value>>> for Value {
+    fn from(coll: Rc<VecDeque<Self>>) -> Self {
+        Value::Vec(coll)
+    }
+}
+
+impl From<f64> for Value {
+    fn from(value: f64) -> Self {
+        Value::Number(value)
+    }
+}
+
+impl From<i64> for Value {
+    fn from(value: i64) -> Self {
+        Value::Number(value as f64   )
+    }
+}
+
+impl From<bool> for Value {
+    fn from(value: bool) -> Self {
+        Value::Bool(value)
+    }
+}
+
 impl AsRef<Value> for Value {
     fn as_ref(&self) -> &Self {
-        &self
+        self
     }
 }
 

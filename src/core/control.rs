@@ -144,5 +144,5 @@ pub fn eval_let(list: &[Value], env: &mut EnvPtr) -> EvalResult {
         Ok(())
     })?;
 
-    eval_value(&body, &mut temp_env)
+    eval_value(body, &mut temp_env)
 } 
