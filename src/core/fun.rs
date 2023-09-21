@@ -35,7 +35,7 @@ pub fn eval_lambda_call(
 // Fix this!! could be handled much more elegantly
 pub fn eval_binary_op(list: &[Value], env: &mut EnvPtr) -> EvalResult {
     let Value::Symbol(symbol) = &list[0] else {
-        todo!()
+        return Err(LankError::SyntaxError);
     };
 
     let operation: fn(f64, f64) -> f64 = match &**symbol {
@@ -202,8 +202,11 @@ pub fn display(list: &[Value], env: &mut EnvPtr) -> EvalResult {
 pub fn gen_rand(list: &[Value], env: &mut EnvPtr) -> EvalResult {
     let mut rng = thread_rng();
 
-    let list = list.iter().map(|v| eval_value(v, env)).collect::<IterResult>()?;
-    
+    let list = list
+        .iter()
+        .map(|v| eval_value(v, env))
+        .collect::<IterResult>()?;
+
     match &list[..] {
         [end] => {
             let Value::Number(num) = end else {
@@ -225,7 +228,7 @@ pub fn gen_rand(list: &[Value], env: &mut EnvPtr) -> EvalResult {
 
 pub fn run_file(list: &[Value]) -> EvalResult {
     let Value::Symbol(filename) = &list[0] else {
-        return Err(LankError::WrongType("Run-file".to_owned()))
+        return Err(LankError::WrongType("Run-file".to_owned()));
     };
 
     let mut file = File::open(filename.as_ref())?;
@@ -240,4 +243,13 @@ pub fn run_file(list: &[Value]) -> EvalResult {
     let end = begin.elapsed();
     println!("Program Duration: {end:?}");
     result
+}
+
+pub fn eval_type_of(list: &[Value], env: &mut EnvPtr) -> EvalResult {
+    let list = list
+        .iter()
+        .map(|v| eval_value(v, env))
+        .collect::<IterResult>()?;
+
+    Ok(Value::String(Rc::from(list[0].type_of())))
 }

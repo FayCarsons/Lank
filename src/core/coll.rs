@@ -2,7 +2,10 @@ use std::{collections::VecDeque, rc::Rc};
 
 use rand::{seq::SliceRandom, thread_rng};
 
-use crate::utils::{value::Form, error::LankError};
+use crate::utils::{
+    error::{IterResult, LankError},
+    value::Form,
+};
 
 use super::{control::eval_symbol, eval_form, eval_value, EnvPtr, EvalResult, Value};
 
@@ -16,8 +19,18 @@ pub fn make_coll(coll_type: &str, list: &[Value], env: &mut EnvPtr) -> EvalResul
         "list" => Value::from(
             list.iter()
                 .map(|v| eval_value(v, env))
-                .collect::<Result<Vec<Value>, LankError>>()?,
+                .collect::<IterResult>()?,
         ),
+        "str" => {
+            let res = list
+                .iter()
+                .cloned()
+                .try_reduce(|a, b| eval_concat(&[a, b], env))?;
+            if res.is_none() {
+                return Err(LankError::WrongType("String".to_owned()));
+            }
+            res.unwrap()
+        }
         _ => unreachable!(),
     };
     Ok(coll)
@@ -29,7 +42,9 @@ pub fn eval_nth(list: &[Value], env: &mut EnvPtr) -> EvalResult {
         .map(|v| eval_value(v, env))
         .collect::<Result<Vec<Value>, LankError>>()?[..2]
     else {
-        return Err(LankError::Other("Nth requires args (nth col idx)".to_owned()));
+        return Err(LankError::Other(
+            "Nth requires args (nth col idx)".to_owned(),
+        ));
     };
 
     let res = match coll {
@@ -190,7 +205,7 @@ pub fn eval_prepend(list: &[Value], env: &mut EnvPtr) -> EvalResult {
         .map(|v| eval_value(v, env))
         .collect::<Result<Vec<Value>, LankError>>()?[..2]
     else {
-        return not_coll
+        return not_coll;
     };
 
     let res: Value = match val {
@@ -403,4 +418,30 @@ pub fn eval_apply(list: &[Value], env: &mut EnvPtr) -> EvalResult {
     coll.insert(0, op.clone());
 
     eval_form(&coll, env)
+}
+
+pub fn eval_concat(list: &[Value], env: &mut EnvPtr) -> EvalResult {
+    let args = list
+        .iter()
+        .map(|v| eval_value(v, env))
+        .collect::<IterResult>()?;
+
+    let [lhs, rhs] = &args[..] else {
+        return Err(LankError::NumArguments("Concat".to_owned(), 2));
+    };
+
+    match (lhs, rhs) {
+        (Value::String(s), Value::Char(c)) => {
+            //let s = s.replace("\"", "");
+            let s = format!("{s}{c}");
+            Ok(Value::from(s))
+        }
+        (Value::Char(c), Value::String(s)) => {
+            let s = format!("{c}{s}");
+            Ok(Value::from(s))
+        }
+        (Value::Char(a), Value::Char(b)) => Ok(Value::from(format!("{a}{b}"))),
+        (Value::String(a), Value::String(b)) => Ok(Value::from(a.to_string() + &b)),
+        _ => Err(LankError::WrongType("concat".to_owned())),
+    }
 }

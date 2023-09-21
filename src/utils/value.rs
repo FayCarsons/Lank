@@ -15,6 +15,23 @@ pub enum Form {
 
 impl Value {
     pub const NIL: Value = Value::Void;
+
+    pub fn type_of(&self) -> &str {
+        match self {
+            Value::Void => "Void",
+            Value::Form(form) => match form {
+                Form::Quoted(_) => "Quoted form",
+                Form::Unquoted(_) => "Unquoted form",
+            },
+            Value::Vec(_) => "Vector",
+            Value::Number(_) => "Number",
+            Value::String(_) => "String",
+            Value::Symbol(_) => "Symbol",
+            Value::Char(_) => "Char",
+            Value::Bool(_) => "Bool",
+            Value::Fun(_, _) => "Function",
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, PartialOrd)]
@@ -44,13 +61,18 @@ impl From<Vec<Value>> for Value {
 
 impl From<String> for Value {
     fn from(value: String) -> Self {
-        Value::Symbol(Rc::from(value))
+        Value::String(Rc::from(value))
     }
 }
 
 impl From<Vec<String>> for Value {
     fn from(value: Vec<String>) -> Self {
-        Value::from(value.iter().map(|s| Value::from(s.clone())).collect::<Vec<Value>>())
+        Value::from(
+            value
+                .iter()
+                .map(|s| Value::from(s.clone()))
+                .collect::<Vec<Value>>(),
+        )
     }
 }
 
@@ -105,9 +127,9 @@ impl fmt::Display for Value {
             },
             Self::Number(n) => write!(f, "{n}"),
             Self::Bool(b) => write!(f, "{b}"),
-            Self::String(s) => write!(f, "{s}"),
+            Self::String(s) => write!(f, "\"{s}\""),
             Self::Symbol(s) => write!(f, "{s}"),
-            Self::Char(c) => write!(f, "{c}"),
+            Self::Char(c) => write!(f, "\'{c}\'"),
             Self::Fun(params, body) => {
                 write!(f, "(fn (")?;
                 for param in params.iter() {

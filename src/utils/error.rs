@@ -1,6 +1,6 @@
 use super::value::Value;
 use core::fmt::Debug;
-use std::{hash::Hash, fmt};
+use std::{fmt, hash::Hash};
 
 #[derive(Debug, Clone)]
 pub enum LankError {
@@ -15,7 +15,7 @@ pub enum LankError {
     ReadlineError(String),
     WrongType(String),
     UnknownFunction(String),
-    Other(String)
+    Other(String),
 }
 
 pub type LankResult<T> = std::result::Result<T, LankError>;
@@ -58,8 +58,15 @@ impl From<LankError> for String {
             LankError::NoChildren => "Form has no children / insufficient args !".to_owned(),
             LankError::NotANumber => "Not a Number!".to_owned(),
             LankError::SyntaxError => "Syntax error".to_owned(),
-            LankError::NumArguments(name, args) => format!("{name} expected {args} or more arguments!"),
-            LankError::Other(s) | LankError::ParseError(s) | LankError::ReadlineError(s) | LankError::Other(s) | LankError::UnknownFunction(s) | LankError::WrongType(s) => s,
+            LankError::NumArguments(name, args) => {
+                format!("{name} expected {args} or more arguments!")
+            }
+            LankError::Other(s)
+            | LankError::ParseError(s)
+            | LankError::ReadlineError(s)
+            | LankError::Other(s)
+            | LankError::UnknownFunction(s)
+            | LankError::WrongType(s) => s,
         }
     }
 }
@@ -73,10 +80,14 @@ impl std::fmt::Display for LankError {
             LankError::NoChildren => write!(f, "Form has no children / insufficient args !"),
             LankError::NotANumber => write!(f, "Not a Number!"),
             LankError::SyntaxError => write!(f, "Syntax error!"),
-            LankError::NumArguments(name, args) => write!(f, "{name} expected {args} or more arguments!"),
-            LankError::Other(s) | LankError::ParseError(s) | LankError::ReadlineError(s) => write!(f, "{s}"),
+            LankError::NumArguments(name, args) => {
+                write!(f, "{name} expected {args} or more arguments!")
+            }
+            LankError::Other(s) | LankError::ParseError(s) | LankError::ReadlineError(s) => {
+                write!(f, "{s}")
+            }
             LankError::UnknownFunction(s) => write!(f, "{s} is not a function!"),
-            LankError::WrongType(s) => write!(f, "Wrong type in {s}")
+            LankError::WrongType(s) => write!(f, "Wrong type in {s}"),
         }
     }
 }

@@ -38,29 +38,27 @@ impl FromPest for Value {
 
                 match rule {
                     Rule::Vec => Value::Vec(Rc::new(tokens.collect::<VecDeque<Value>>())),
-                    Rule::NonQuotedForm => {
-                        Value::from(tokens.collect::<Vec<Value>>())
-                    }
-                    Rule::QuotedForm => {
-                        Value::from(tokens.collect::<Vec<Value>>())
-                    }
+                    Rule::NonQuotedForm => Value::from(tokens.collect::<Vec<Value>>()),
+                    Rule::QuotedForm => Value::from(tokens.collect::<Vec<Value>>()),
                     _ => unreachable!(),
                 }
             }
             Rule::Map => Value::String(Rc::from("This is a hashmap")),
             Rule::Primitive => Self::from_pest(pair.into_inner().next().unwrap())?,
             Rule::Bool => Value::Bool(matches!(pair.as_str(), "true")),
-            Rule::String => Value::String(Rc::from(pair.as_str().to_owned())),
-            Rule::Symbol => Value::Symbol(Rc::from(pair.as_str().to_owned())),
-            Rule::Char => Value::Char(pair.as_str().chars().nth(0).unwrap()),
-            Rule::Number => {
-                let can_parse = str::parse::<f64>(pair.as_str());
-                if let Ok(num) = can_parse {
-                    Value::Number(num)
-                } else {
-                    return Err(LankError::NotANumber);
-                }
+            Rule::String => {
+                let str = pair.as_str();
+                Value::from(str[1..str.len() - 1].to_owned())
             }
+            Rule::Symbol => Value::Symbol(Rc::from(pair.as_str().to_owned())),
+            Rule::Char => {
+                let str = pair.as_str();
+                Value::Char(char::from(str[1..str.len() - 1].as_bytes()[0]))
+            }
+            Rule::Number => {
+                Value::Number(str::parse::<f64>(pair.as_str()).map_err(|err| err.to_string())?)
+            }
+
             _ => Value::from_pest(pair)?,
         };
 

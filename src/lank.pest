@@ -14,17 +14,17 @@ QuotedForm = ${ "`" ~ NonQuotedForm }
 NonQuotedForm = { "(" ~ (Primitive | Vec | Map | Form)+ ~ ")" }
 
 Vec = { "[" ~ ((Form | Primitive | Vec) ~ WHITESPACE*)* ~ "]" }
-Map = { "{" ~ ((Form | Primitive | Vec) ~ (Form | Primitive))* ~ "}"}
+Map = { "{" ~ ((Form | Primitive | Vec) ~ (Form | Primitive | Vec))* ~ "}"}
 
 Primitive = { String | Char | Bool | Number | Symbol }
 
-String = @{ "\"" ~ StringInner ~ "\"" }
-StringInner = @{ (!"\"" ~ ANY)* }
-Char = @{ "\'" ~ ANY* ~ "\'"}
+String = { "\"" ~ StringInner ~ "\"" }
+StringInner = @{ (!("\"" | "\'") ~ ANY)* }
+Char = { "\'" ~ ('a'..'z' | 'A'..'Z'){1} ~ "\'"}
 
 Bool = @{ "true" | "false"}
 
 Number = @{ "-"? ~ ASCII_DIGIT+ ~ "."? ~ ASCII_DIGIT*}
 
 Symbol = @{ (!SymbolForbiddenChar ~ ANY)+ }
-SymbolForbiddenChar = { "\"" | ";" | "(" | ")" | "[" | "]" | "`" | WHITESPACE }
+SymbolForbiddenChar = { "\"" | ";" | "(" | ")" | "[" | "]" | "`" | "'" | WHITESPACE }

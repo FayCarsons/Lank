@@ -1,4 +1,7 @@
-use crate::utils::{value::Form, error::{LankError, IterResult}};
+use crate::utils::{
+    error::{IterResult, LankError},
+    value::Form,
+};
 
 use super::{eval_form, eval_value, fun::*, Env, EnvPtr, EvalResult, Value};
 use std::rc::Rc;
@@ -60,10 +63,11 @@ pub fn eval_fn_def(list: &[Value]) -> EvalResult {
         Rc::from(
             vals.iter()
                 .map(|o| match o {
-                        Value::Symbol(s) => Ok((&*s).to_string()),
-                        _ => Err(format!("Invalid function params")),
+                    Value::Symbol(s) => Ok((&*s).to_string()),
+                    _ => Err(format!("Invalid function params")),
                 })
-        .collect::<Result<Vec<String>, String>>()?)
+                .collect::<Result<Vec<String>, String>>()?,
+        )
     } else {
         return Err(LankError::FunctionFormat);
     };
@@ -78,7 +82,7 @@ pub fn eval_fn_def(list: &[Value]) -> EvalResult {
 
 pub fn defn(list: &[Value], env: &mut EnvPtr) -> EvalResult {
     let spl = list.split_first();
-    
+
     if spl.is_none() {
         return Err(LankError::SyntaxError);
     }

@@ -17,7 +17,15 @@ mod fun;
 use coll::*;
 use control::*;
 
-use self::{conditional::*, control::*, fun::*, utils::{value::Form, error::{IterResult, LankError}}};
+use self::{
+    conditional::*,
+    control::*,
+    fun::*,
+    utils::{
+        error::{IterResult, LankError},
+        value::Form,
+    },
+};
 
 pub fn eval(program: &str, env: &mut EnvPtr) -> EvalResult {
     match parse(program) {
@@ -51,6 +59,7 @@ fn eval_form(list: &[Value], env: &mut EnvPtr) -> EvalResult {
             match s {
                 "def" => eval_def(&list[1..], env),
                 "defn" => defn(&list[1..], env),
+                "type-of" => eval_type_of(&list[1..], env),
                 "let" => eval_let(&list[1..], env),
                 "if" | "?" => eval_ternary(&list[1..], env),
                 "if-let" => eval_if_let(&list[1..], env),
@@ -67,7 +76,7 @@ fn eval_form(list: &[Value], env: &mut EnvPtr) -> EvalResult {
                 "rand-nth" => rand_nth(&list[1..], env),
                 "nil?" => eval_nil(&list[1..], env),
                 "nth" => eval_nth(&list[1..], env),
-                "list" | "vec" => make_coll(s, &list[1..], env),
+                "list" | "vec" | "str" => make_coll(s, &list[1..], env),
                 "first" => eval_first(&list[1..], env),
                 "second" => eval_second(&list[1..], env),
                 "last" => eval_last(&list[1..], env),
@@ -78,6 +87,7 @@ fn eval_form(list: &[Value], env: &mut EnvPtr) -> EvalResult {
                 "map" => eval_map(&list[1..], env),
                 "reduce" => eval_reduce(&list[1..], env),
                 "apply" => eval_apply(&list[1..], env),
+                "concat" => eval_concat(&list[1..], env),
                 _ => eval_fn_call(s, &list[1..], env),
             }
         }
