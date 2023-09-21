@@ -1,4 +1,6 @@
-use super::{eval_form, eval_value, fun::nil, Env, EnvPtr, EvalResult, Value};
+use crate::utils::value::Form;
+
+use super::{eval_value, eval_form, fun::*, Env, EnvPtr, EvalResult, Value};
 use std::rc::Rc;
 
 pub fn eval_def(list: &[Value], env: &mut EnvPtr) -> EvalResult {
@@ -34,8 +36,8 @@ pub fn eval_do(list: &[Value], env: &mut EnvPtr) -> EvalResult {
     let exprs = list
         .iter()
         .map(|expr| {
-            if let Value::Form { tokens, .. } = expr {
-                eval_form(tokens, env)
+            if let Value::Form(Form::Unquoted(vals)) = expr {
+                eval_form(vals, env)
             } else {
                 eval_value(expr, env)
             }
@@ -54,9 +56,9 @@ pub fn eval_symbol(s: &str, env: &EnvPtr) -> EvalResult {
 }
 
 pub fn eval_fn_def(list: &[Value]) -> EvalResult {
-    let params = if let Value::Form { quoted: _, tokens } = &list[0] {
+    let params = if let Value::Form(Form::Unquoted(vals)) = &list[0] {
         Rc::new(
-            tokens
+            vals
                 .iter()
                 .map(|o| match o {
                     Value::Symbol(s) => Ok(String::from(&**s)),
@@ -69,7 +71,7 @@ pub fn eval_fn_def(list: &[Value]) -> EvalResult {
     };
 
     let body = match &list[1] {
-        Value::Form { quoted: _, tokens } => tokens.clone(),
+        Value::Form(Form::Unquoted(vals)) => vals.clone(),
         _ => return Err("Invalid function body!".to_owned()),
     };
     Ok(Value::Fun(params, body))
@@ -109,11 +111,9 @@ pub fn eval_fn_call(name: &str, list: &[Value], env: &mut EnvPtr) -> EvalResult 
                 .iter()
                 .zip(vals.iter())
                 .for_each(|(param, val)| temp_env.borrow_mut().set(param, val.clone()));
-            eval_value(
-                &Value::Form {
-                    quoted: false,
-                    tokens: body,
-                },
+            eval_form(
+                &body
+                ,
                 &mut temp_env,
             )
         }

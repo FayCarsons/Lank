@@ -1,4 +1,4 @@
-use super::{error::EvalResult, value::Value};
+use super::{error::EvalResult, value::{Value, Form}};
 
 use std::{collections::VecDeque, rc::Rc, sync::OnceLock};
 
@@ -35,14 +35,8 @@ impl FromPest for Value {
 
                 match rule {
                     Rule::Vec => Value::Vec(Rc::new(tokens.collect::<VecDeque<Value>>())),
-                    Rule::NonQuotedForm => Value::Form {
-                        quoted: false,
-                        tokens: Rc::new(tokens.collect::<Vec<Value>>()),
-                    },
-                    Rule::QuotedForm => Value::Form {
-                        quoted: true,
-                        tokens: Rc::new(tokens.collect::<Vec<Value>>()),
-                    },
+                    Rule::NonQuotedForm => Value::Form(Form::Unquoted(Rc::new(tokens.collect::<Vec<Value>>()))),
+                    Rule::QuotedForm => Value::Form(Form::Quoted(Rc::new(tokens.collect::<Vec<Value>>()))),
                     _ => unreachable!(),
                 }
             }

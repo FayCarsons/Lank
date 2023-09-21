@@ -20,7 +20,7 @@ use control::*;
 use self::{
     conditional::*,
     control::*,
-    fun::*,
+    fun::*, utils::value::Form,
 };
 
 pub fn eval(program: &str, env: &mut EnvPtr) -> EvalResult {
@@ -33,13 +33,7 @@ pub fn eval(program: &str, env: &mut EnvPtr) -> EvalResult {
 pub fn eval_value(obj: &Value, env: &mut EnvPtr) -> EvalResult {
     match obj {
         Value::Symbol(s) => eval_symbol(s, env),
-        Value::Form { quoted, tokens } => {
-            if *quoted {
-                Ok(obj.clone())
-            } else {
-                eval_form(tokens, env)
-            }
-        }
+        Value::Form(Form::Unquoted(vals)) => eval_form(vals, env),
         //Value::Vec(tokens) => create_vec(tokens, env),
         Value::Fun(params, body) => Ok(Value::Fun(params.to_owned(), body.to_owned())),
         x => Ok(x.clone()),
@@ -96,11 +90,10 @@ fn eval_form(list: &[Value], env: &mut EnvPtr) -> EvalResult {
             eval_lambda_call(params, body, &list[1..], env)
         }
 
-        Value::Form { quoted, tokens } => {
-            if *quoted {
-                Ok(head.clone())
-            } else {
-                match eval_form(tokens, env) {
+        Value::Form(form) => {
+            match form {
+                Form::Quoted(_) => Ok(head.clone()),
+                Form::Unquoted(vals) => match eval_form(vals, env) {
                     Ok(Value::Fun(ref params, ref body)) => {
                         eval_lambda_call(params, body, &list[1..], env)
                     }
@@ -119,10 +112,7 @@ fn eval_form(list: &[Value], env: &mut EnvPtr) -> EvalResult {
                 .into_iter()
                 .filter(|x| *x != Value::Void)
                 .collect(); */
-            Ok(Value::Form {
-                quoted: false,
-                tokens: Rc::new(xs),
-            })
+            Ok(Value::from(xs))
         }
     }
 }
@@ -137,11 +127,8 @@ fn match_test() {
                         )";
     let result = eval(program, &mut Env::new_ptr());
     assert_eq!(
-        result,
-        Ok(Value::Form {
-            quoted: false,
-            tokens: Rc::new(vec!(Value::Number(1.)))
-        })
+        result.unwrap(),
+        Value::Number(1.)
     )
 }
 
@@ -154,10 +141,7 @@ fn when_test() {
     let result = eval(program, &mut Env::new_ptr());
     assert_eq!(
         result.unwrap(),
-        Value::Form {
-            quoted: false,
-            tokens: Rc::new(vec!(Value::Number(1.)))
-        }
+        Value::Number(1.)
     )
 }
 
@@ -170,10 +154,7 @@ fn if_test() {
     let result = eval(program, &mut Env::new_ptr());
     assert_eq!(
         result.unwrap(),
-        Value::Form {
-            quoted: false,
-            tokens: Rc::new(vec!(Value::Number(1.)))
-        }
+        Value::Number(1.)
     )
 }
 
@@ -186,10 +167,7 @@ fn fn_test() {
     let result = eval(program, &mut Env::new_ptr());
     assert_eq!(
         result.unwrap(),
-        Value::Form {
-            quoted: false,
-            tokens: Rc::new(vec!(Value::Number(1.)))
-        }
+        Value::Number(1.)
     );
 
     let program = "(
@@ -199,10 +177,7 @@ fn fn_test() {
     let result = eval(program, &mut Env::new_ptr());
     assert_eq!(
         result.unwrap(),
-        Value::Form {
-            quoted: false,
-            tokens: Rc::new(vec!(Value::Number(1.)))
-        }
+        Value::Number(1.)
     );
 }
 

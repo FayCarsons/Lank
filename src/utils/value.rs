@@ -6,51 +6,41 @@ use std::{
 
 pub type Seq = Rc<Vec<Value>>;
 pub type Vector = Rc<VecDeque<Value>>;
-pub type Map = Box<HashMap<Value, Value>>;
+pub type Map = Box<HashMap<Rc<str>, Value>>;
 
+#[derive(Debug, Clone, PartialEq, PartialOrd)]
 pub enum Form {
     Quoted(Seq),
-    Unquted(Seq),
-    Data(Vector),
+    Unquoted(Seq),
 }
 
 impl Value {
     pub const NIL: Value = Value::Void;
 
-    pub fn new_unquoted(tokens: Vec<Value>) -> Self {
-        Self::Form {
-            quoted: false,
-            tokens: Rc::new(tokens),
-        }
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, PartialOrd)]
 pub enum Value {
     Void,
-    Form { quoted: bool, tokens: Seq },
+    Form(Form),
     Number(f64),
     String(Rc<str>),
     Char(char),
     Symbol(Rc<str>),
     Bool(bool),
     Vec(Vector),
-    Map(Seq),
     Fun(Rc<Vec<String>>, Rc<Vec<Value>>),
 }
 
 impl From<Rc<Vec<Value>>> for Value {
     fn from(ptr: Rc<Vec<Self>>) -> Self {
-        Value::Form {
-            quoted: false,
-            tokens: ptr,
-        }
+        Value::Form(Form::Unquoted(ptr))
     }
 }
 
 impl From<Vec<Value>> for Value {
     fn from(coll: Vec<Self>) -> Self {
-        Value::Form{quoted: false, tokens: Rc::new(coll)}
+        Self::Form(Form::Unquoted(Rc::new(coll)))
     }
 }
 
@@ -95,12 +85,16 @@ impl fmt::Display for Value {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Self::Void => write!(f, ""),
-            Self::Form { tokens, .. } => {
-                write!(f, "(")?;
-                for token in tokens.iter() {
-                    write!(f, "{token} ")?;
+            Self::Form(form) => {
+                match form {
+                    Form::Quoted(fr) | Form::Unquoted(fr) => {
+                        write!(f, "(")?;
+                        for token in fr.iter() {
+                            write!(f, "{token} ")?;
+                        }
+                        write!(f, ") ")
+                    }
                 }
-                write!(f, ") ")
             }
             Self::Number(n) => write!(f, "{n}"),
             Self::Bool(b) => write!(f, "{b}"),
@@ -118,7 +112,6 @@ impl fmt::Display for Value {
                 }
                 write!(f, "))")
             }
-            Self::Map(map) => write!(f, "{map:#?}"),
             Self::Vec(v) => {
                 write!(f, "[")?;
                 for val in v.iter() {
