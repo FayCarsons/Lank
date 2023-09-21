@@ -6,7 +6,7 @@ use std::{
     rc::Rc,
 };
 
-use crate::utils::error::IterResult;
+use crate::utils::error::{IterResult, LankError};
 
 use super::{eval, eval_form, eval_value, Env, EnvPtr, EvalResult, Value};
 
@@ -77,14 +77,14 @@ pub fn eval_binary_op(list: &[Value], env: &mut EnvPtr) -> EvalResult {
         },
         "!=" => |a, b| if a != b { 1. } else { 0. },
         "==" => |a, b| if a == b { 1. } else { 0. },
-        _ => return Err(format!("Unrecognized Arithmmetic Operation {symbol}")),
+        _ => return Err(LankError::WrongType(symbol.to_string())),
     };
 
     let args = &list[1..];
     let args = args
         .iter()
         .map(|a| eval_value(a, env))
-        .collect::<Result<Vec<Value>, String>>()?;
+        .collect::<IterResult>()?;
 
     let res = args
         .into_iter()
@@ -103,7 +103,7 @@ pub fn eval_binary_op(list: &[Value], env: &mut EnvPtr) -> EvalResult {
             _ => Ok(Value::Number(result)),
         }
     } else {
-        Err(ArithmeticError.to_owned())
+        Err(LankError::NotANumber)
     }
 }
 
@@ -111,7 +111,7 @@ pub fn eval_unary(list: &[Value], env: &mut EnvPtr) -> EvalResult {
     let head = &list[0];
 
     let Value::Symbol(operator) = head else {
-        return Err(format!("Invalid unary function {head}"));
+        return Err(LankError::FunctionFormat);
     };
 
     let operation = match &**operator {
@@ -119,25 +119,25 @@ pub fn eval_unary(list: &[Value], env: &mut EnvPtr) -> EvalResult {
             if let Value::Number(num) = o {
                 Ok(Value::Number(num.abs()))
             } else {
-                Err(ArithmeticError.to_owned())
+                Err(LankError::NotANumber)
             }
         },
         "neg" => |o: Value| -> EvalResult {
             if let Value::Number(num) = o {
                 Ok(Value::Number(-num))
             } else {
-                Err(ArithmeticError.to_owned())
+                Err(LankError::NotANumber)
             }
         },
         "bit-flip" => |o: Value| -> EvalResult {
             if let Value::Number(num) = o {
                 Ok(Value::Number((!(num as i64)) as f64))
             } else {
-                Err(ArithmeticError.to_owned())
+                Err(LankError::NotANumber)
             }
         },
         "not" => |o: Value| Ok(Value::Bool(nil(&o))),
-        _ => return Err(format!("Unknown Unary Operator {operator}")),
+        _ => return Err(LankError::UnknownFunction(operator.to_string())),
     };
 
     let arg = eval_value(&list[1], env)?;
@@ -155,7 +155,7 @@ pub fn eval_bool(list: &[Value], env: &mut EnvPtr) -> EvalResult {
     let head = &list[0];
 
     let Value::Symbol(operator) = head else {
-        return Err(format!("Invalid boolean function {head}"));
+        return Err(LankError::SyntaxError);
     };
 
     let args = &list[1..];
@@ -163,15 +163,15 @@ pub fn eval_bool(list: &[Value], env: &mut EnvPtr) -> EvalResult {
     let args = args
         .iter()
         .map(|a| eval_value(a, env))
-        .collect::<Result<Vec<Value>, String>>()?;
+        .collect::<IterResult>()?;
 
     let [lhs, rhs] = &args[..] else {
-        return Err("Invalid args for boolean fn!".to_owned())
+        return Err(LankError::NumArguments(operator.to_string(), 2));
     };
 
     let (lhs, rhs) = match (lhs, rhs) {
         (Value::Bool(a), Value::Bool(b)) => (a, b),
-        _ => return Err("Incorrect args for boolean function".to_owned()),
+        _ => return Err(LankError::WrongType(operator.to_string())),
     };
 
     match &**operator {
@@ -179,7 +179,7 @@ pub fn eval_bool(list: &[Value], env: &mut EnvPtr) -> EvalResult {
         "or" => Ok(Value::Bool(lhs | rhs)),
         "eq" => Ok(Value::Bool(lhs == rhs)),
         "and" => Ok(Value::Bool(lhs & rhs)),
-        _ => Err(format!("Unrecognized Boolean Operator {operator}!")),
+        _ => Err(LankError::UnknownFunction(operator.to_string())),
     }
 }
 
@@ -202,45 +202,36 @@ pub fn display(list: &[Value], env: &mut EnvPtr) -> EvalResult {
 pub fn gen_rand(list: &[Value], env: &mut EnvPtr) -> EvalResult {
     let mut rng = thread_rng();
 
-    let list: Vec<EvalResult> = list.iter().map(|v| eval_value(v, env)).collect();
-    for val in list.iter() {
-        if val.is_err() {
-            return val.clone();
-        }
-    }
-    let list: Vec<Value> = list.iter().map(|v| v.clone().unwrap()).collect();
+    let list = list.iter().map(|v| eval_value(v, env)).collect::<IterResult>()?;
+    
     match &list[..] {
         [end] => {
             let Value::Number(num) = end else {
-                return Err("Incorrect argument type in Rand".to_owned());
+                return Err(LankError::NumArguments("Rand".to_owned(), 1));
             };
             Ok(Value::Number(rng.gen_range(0..*num as usize) as f64))
         }
         [start, end] => {
             let (Value::Number(st), Value::Number(en)) = (start, end) else {
-                return Err("Incorrect argument type in Rand".to_owned());
+                return Err(LankError::NumArguments("Rand".to_owned(), 1));
             };
             Ok(Value::Number(
                 rng.gen_range(*st as usize..*en as usize) as f64
             ))
         }
-        _ => Err("Rand requires 1-2 args!".to_owned()),
+        _ => Err(LankError::NumArguments("Rand".to_owned(), 1)),
     }
 }
 
 pub fn run_file(list: &[Value]) -> EvalResult {
-    let filename = if let Value::Symbol(s) = &list[0] {
-        s
-    } else {
-        return Err("Invalid Filename".to_owned());
+    let Value::Symbol(filename) = &list[0] else {
+        return Err(LankError::WrongType("Run-file".to_owned()))
     };
 
-    let file = File::open(filename.as_ref());
-    if file.is_err() {
-        return Err(format!("Cannot Read File {filename}"));
-    }
+    let mut file = File::open(filename.as_ref())?;
+
     let mut buffer = String::new();
-    file.unwrap().read_to_string(&mut buffer).unwrap();
+    file.read_to_string(&mut buffer).unwrap();
 
     let env = &mut Env::new_ptr();
 

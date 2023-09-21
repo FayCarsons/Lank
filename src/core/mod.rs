@@ -17,11 +17,7 @@ mod fun;
 use coll::*;
 use control::*;
 
-use self::{
-    conditional::*,
-    control::*,
-    fun::*, utils::value::Form,
-};
+use self::{conditional::*, control::*, fun::*, utils::{value::Form, error::{IterResult, LankError}}};
 
 pub fn eval(program: &str, env: &mut EnvPtr) -> EvalResult {
     match parse(program) {
@@ -43,7 +39,7 @@ pub fn eval_value(obj: &Value, env: &mut EnvPtr) -> EvalResult {
 fn eval_form(list: &[Value], env: &mut EnvPtr) -> EvalResult {
     let head = match list.first() {
         Some(op) => op,
-        None => return Err("Empty Parens".to_owned()),
+        None => return Err(LankError::EmptyList),
     };
 
     match head {
@@ -86,27 +82,23 @@ fn eval_form(list: &[Value], env: &mut EnvPtr) -> EvalResult {
             }
         }
 
-        Value::Fun(params, body) => {
-            eval_lambda_call(params, body, &list[1..], env)
-        }
+        Value::Fun(params, body) => eval_lambda_call(params, body, &list[1..], env),
 
-        Value::Form(form) => {
-            match form {
-                Form::Quoted(_) => Ok(head.clone()),
-                Form::Unquoted(vals) => match eval_form(vals, env) {
-                    Ok(Value::Fun(ref params, ref body)) => {
-                        eval_lambda_call(params, body, &list[1..], env)
-                    }
-                    x => x 
+        Value::Form(form) => match form {
+            Form::Quoted(_) => Ok(head.clone()),
+            Form::Unquoted(vals) => match eval_form(vals, env) {
+                Ok(Value::Fun(ref params, ref body)) => {
+                    eval_lambda_call(params, body, &list[1..], env)
                 }
-            }
-        }
+                x => x,
+            },
+        },
 
         _ => {
             let xs = list
                 .iter()
                 .map(|v| eval_value(v, env))
-                .collect::<Result<Vec<Value>, String>>()?;
+                .collect::<IterResult>()?;
             /* WAS THIS NECESSARY? ~INVESTIGATE~
             let xs = xs
                 .into_iter()
@@ -126,10 +118,7 @@ fn match_test() {
                                 false => 0)
                         )";
     let result = eval(program, &mut Env::new_ptr());
-    assert_eq!(
-        result.unwrap(),
-        Value::Number(1.)
-    )
+    assert_eq!(result.unwrap(), Value::Number(1.))
 }
 
 #[test]
@@ -139,10 +128,7 @@ fn when_test() {
                             (when a 1)
                         )";
     let result = eval(program, &mut Env::new_ptr());
-    assert_eq!(
-        result.unwrap(),
-        Value::Number(1.)
-    )
+    assert_eq!(result.unwrap(), Value::Number(1.))
 }
 
 #[test]
@@ -152,10 +138,7 @@ fn if_test() {
                             (if a 1 0)
                         )";
     let result = eval(program, &mut Env::new_ptr());
-    assert_eq!(
-        result.unwrap(),
-        Value::Number(1.)
-    )
+    assert_eq!(result.unwrap(), Value::Number(1.))
 }
 
 #[test]
@@ -165,19 +148,12 @@ fn fn_test() {
                             (inc 0)
                         )";
     let result = eval(program, &mut Env::new_ptr());
-    assert_eq!(
-        result.unwrap(),
-        Value::Number(1.)
-    );
+    assert_eq!(result.unwrap(), Value::Number(1.));
 
     let program = "(
         (defn inc (x) (+ x 1))
         (inc (- 2 2))
     )";
     let result = eval(program, &mut Env::new_ptr());
-    assert_eq!(
-        result.unwrap(),
-        Value::Number(1.)
-    );
+    assert_eq!(result.unwrap(), Value::Number(1.));
 }
-

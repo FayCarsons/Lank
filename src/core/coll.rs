@@ -1,17 +1,24 @@
 use std::{collections::VecDeque, rc::Rc};
 
+use rand::{seq::SliceRandom, thread_rng};
 
-use rand::{thread_rng, seq::SliceRandom};
-
-use crate::utils::value::Form;
+use crate::utils::{value::Form, error::LankError};
 
 use super::{control::eval_symbol, eval_form, eval_value, EnvPtr, EvalResult, Value};
 
 pub fn make_coll(coll_type: &str, list: &[Value], env: &mut EnvPtr) -> EvalResult {
     let coll = match coll_type {
-        "vec" => Value::from(list.iter().map(|v| eval_value(v, env)).collect::<Result<VecDeque<Value>, String>>()?),
-        "list" => Value::from(list.iter().map(|v| eval_value(v, env)).collect::<Result<Vec<Value>, String>>()?),
-        _ => unreachable!()
+        "vec" => Value::from(
+            list.iter()
+                .map(|v| eval_value(v, env))
+                .collect::<Result<VecDeque<Value>, LankError>>()?,
+        ),
+        "list" => Value::from(
+            list.iter()
+                .map(|v| eval_value(v, env))
+                .collect::<Result<Vec<Value>, LankError>>()?,
+        ),
+        _ => unreachable!(),
     };
     Ok(coll)
 }
@@ -20,9 +27,9 @@ pub fn eval_nth(list: &[Value], env: &mut EnvPtr) -> EvalResult {
     let [coll, idx] = &list
         .iter()
         .map(|v| eval_value(v, env))
-        .collect::<Result<Vec<Value>, String>>()?[..2]
+        .collect::<Result<Vec<Value>, LankError>>()?[..2]
     else {
-        return Err("Nth requires args (nth col idx)".to_owned());
+        return Err(LankError::Other("Nth requires args (nth col idx)".to_owned()));
     };
 
     let res = match coll {
@@ -31,17 +38,17 @@ pub fn eval_nth(list: &[Value], env: &mut EnvPtr) -> EvalResult {
                 let res = vals.get(*num as usize);
                 res
             } else {
-                return Err(format!("Expected number index, got {idx}"));
+                return Err(LankError::NotANumber);
             }
         }
         Value::Vec(vector) => {
             if let Value::Number(num) = idx {
                 vector.get(*num as usize)
             } else {
-                return Err(format!("Expected number index, got {idx}"));
+                return Err(LankError::NotANumber);
             }
         }
-        _ => return Err(format!("Nth expected coll got {coll}")),
+        _ => return Err(LankError::NotANumber),
     };
 
     Ok(if let Some(num) = res {
@@ -53,31 +60,31 @@ pub fn eval_nth(list: &[Value], env: &mut EnvPtr) -> EvalResult {
 
 pub fn rand_nth(list: &[Value], env: &mut EnvPtr) -> EvalResult {
     let coll = eval_value(&list[0], env)?;
-    
+
     let elem = match coll {
         Value::Form(Form::Unquoted(vals)) => {
             let res = vals.choose(&mut thread_rng());
             if res.is_none() {
-                return Err("Empty coll!".to_owned())
+                return Err(LankError::NoChildren);
             }
             res.unwrap().clone()
-        },
+        }
         Value::Vec(vec) => {
             let vec = Vec::from_iter(vec.iter().cloned());
-            let res =  vec.choose(&mut thread_rng());
+            let res = vec.choose(&mut thread_rng());
             if res.is_none() {
-                return Err("Empty coll!".to_owned())
+                return Err(LankError::NoChildren);
             }
             res.unwrap().clone()
         }
         Value::String(s) => {
             let res = s.as_bytes().choose(&mut thread_rng());
             if res.is_none() {
-                return Err("Empty coll!".to_owned())
+                return Err(LankError::NoChildren);
             }
             Value::Char(char::from(*res.unwrap()))
         }
-        _ => return Err(format!("Expected coll got {coll}"))
+        _ => return Err(LankError::WrongType("Nth".to_owned())),
     };
 
     Ok(elem.clone())
@@ -102,7 +109,7 @@ pub fn eval_first(list: &[Value], env: &mut EnvPtr) -> EvalResult {
                 Value::Void
             }
         }
-        _ => return Err(format!("Expected coll got {coll}")),
+        _ => return Err(LankError::WrongType("First".to_owned())),
     };
 
     Ok(res)
@@ -127,7 +134,7 @@ pub fn eval_second(list: &[Value], env: &mut EnvPtr) -> EvalResult {
                 Value::Void
             }
         }
-        _ => return Err(format!("Expected coll got {coll}")),
+        _ => return Err(LankError::WrongType("Second".to_owned())),
     };
 
     Ok(res)
@@ -152,112 +159,124 @@ pub fn eval_last(list: &[Value], env: &mut EnvPtr) -> EvalResult {
                 Value::Void
             }
         }
-        _ => return Err(format!("Expected coll got {coll}")),
+        _ => return Err(LankError::WrongType("Last".to_owned())),
     };
 
     Ok(res)
 }
 
 pub fn eval_rest(list: &[Value], env: &mut EnvPtr) -> EvalResult {
+    let not_coll = Err(LankError::WrongType("Rest".to_owned()));
+
     let head = &list[0];
     let coll = eval_value(head, env)?;
 
     let res = match coll {
-        Value::Form(Form::Unquoted(vals)) => {
-            Value::from(vals[1..].to_vec())
-        }
+        Value::Form(Form::Unquoted(vals)) => Value::from(vals[1..].to_vec()),
         Value::Vec(vector) => Value::Vec(Rc::new(
             vector.iter().skip(1).cloned().collect::<VecDeque<Value>>(),
         )),
-        _ => return Err(format!("Expected coll got {coll}")),
+        _ => return not_coll,
     };
 
     Ok(res)
 }
 
 pub fn eval_prepend(list: &[Value], env: &mut EnvPtr) -> EvalResult {
+    let not_coll = Err(LankError::WrongType("Prepend".to_owned()));
+
     let [coll, val] = &list
         .iter()
         .map(|v| eval_value(v, env))
-        .collect::<Result<Vec<Value>, String>>()?[..2]
+        .collect::<Result<Vec<Value>, LankError>>()?[..2]
     else {
-        return Err("Prepend requires args (prepend col value)".to_owned());
+        return not_coll
     };
 
     let res: Value = match val {
-        Value::Vec(other) => {
-            match coll {
-                Value::Vec(this) => {
-                    Value::Vec(Rc::new(other.iter().chain(this.iter()).cloned().collect()))
-                }
-
-                Value::Form(Form::Unquoted(vals)) => {
-                    Value::from(other.iter().chain(vals.iter()).cloned().collect::<Vec<Value>>())
-                }
-                _ => return Err(format!("Prepend expected coll as 1st arg, got {coll}"))
+        Value::Vec(other) => match coll {
+            Value::Vec(this) => {
+                Value::Vec(Rc::new(other.iter().chain(this.iter()).cloned().collect()))
             }
-        }
 
-        x => {
-            match coll {
-                Value::Vec(this) => {
-                    Value::Vec(Rc::new([x.clone()].iter().chain(this.iter()).cloned().collect()))
-                }
+            Value::Form(Form::Unquoted(vals)) => Value::from(
+                other
+                    .iter()
+                    .chain(vals.iter())
+                    .cloned()
+                    .collect::<Vec<Value>>(),
+            ),
+            _ => return not_coll,
+        },
 
-                Value::Form(Form::Unquoted(vals)) => {
-                    Value::from([x.clone()].iter().chain(vals.iter()).cloned().collect::<Vec<Value>>())
-                }
-                _ => return Err(format!("Prepend expected coll as 1st arg, got {coll}"))
-            }
-        }
+        x => match coll {
+            Value::Vec(this) => Value::Vec(Rc::new(
+                [x.clone()].iter().chain(this.iter()).cloned().collect(),
+            )),
+
+            Value::Form(Form::Unquoted(vals)) => Value::from(
+                [x.clone()]
+                    .iter()
+                    .chain(vals.iter())
+                    .cloned()
+                    .collect::<Vec<Value>>(),
+            ),
+            _ => return not_coll,
+        },
     };
 
     Ok(res)
 }
 
 pub fn eval_append(list: &[Value], env: &mut EnvPtr) -> EvalResult {
+    let not_coll = Err(LankError::WrongType("Append".to_owned()));
+
     let [coll, val] = &list
         .iter()
         .map(|v| eval_value(v, env))
-        .collect::<Result<Vec<Value>, String>>()?[..2]
+        .collect::<Result<Vec<Value>, LankError>>()?[..2]
     else {
-        return Err("Append requires args (cons col value)".to_owned());
+        return not_coll;
     };
 
     let res: Value = match val {
-        Value::Vec(other) => {
-            match coll {
-                Value::Vec(this) => {
-                    Value::Vec(Rc::new(this.iter().chain(other.iter()).cloned().collect()))
-                }
-
-                Value::Form(Form::Unquoted(vals)) => {
-                    Value::from(vals.iter().chain(other.iter()).cloned().collect::<Vec<Value>>())
-                }
-                _ => return Err(format!("Append expected coll as 1st arg, got {coll}"))
+        Value::Vec(other) => match coll {
+            Value::Vec(this) => {
+                Value::Vec(Rc::new(this.iter().chain(other.iter()).cloned().collect()))
             }
-        }
 
-        x => {
-            match coll {
-                Value::Vec(this) => {
-                    Value::Vec(Rc::new(this.iter().chain([x.clone()].iter()).cloned().collect()))
-                }
+            Value::Form(Form::Unquoted(vals)) => Value::from(
+                vals.iter()
+                    .chain(other.iter())
+                    .cloned()
+                    .collect::<Vec<Value>>(),
+            ),
+            _ => return not_coll,
+        },
 
-                Value::Form(Form::Unquoted(vals)) => {
-                    Value::from(vals.iter().chain([x.clone()].iter()).cloned().collect::<Vec<Value>>())
-                }
-                _ => return Err(format!("Append expected coll as 1st arg, got {coll}"))
-            }
-        }
+        x => match coll {
+            Value::Vec(this) => Value::Vec(Rc::new(
+                this.iter().chain([x.clone()].iter()).cloned().collect(),
+            )),
+
+            Value::Form(Form::Unquoted(vals)) => Value::from(
+                vals.iter()
+                    .chain([x.clone()].iter())
+                    .cloned()
+                    .collect::<Vec<Value>>(),
+            ),
+            _ => return not_coll,
+        },
     };
 
     Ok(res)
 }
 
 pub fn eval_map(list: &[Value], env: &mut EnvPtr) -> EvalResult {
+    let not_coll = Err(LankError::WrongType("Map".to_owned()));
+
     let [fun, coll] = &list[..2] else {
-        return Err("Map requires args (map col value)".to_owned());
+        return not_coll;
     };
 
     let coll = if let Value::Symbol(s) = coll {
@@ -272,8 +291,8 @@ pub fn eval_map(list: &[Value], env: &mut EnvPtr) -> EvalResult {
         Value::Fun(_, _) | Value::Symbol(_) => fun.clone(),
 
         Value::Form(Form::Unquoted(vals)) => eval_form(vals, env)?,
-        
-        _ => return Err("Map requires fn as second arg!".to_owned()),
+
+        _ => return not_coll,
     };
 
     match coll {
@@ -281,23 +300,25 @@ pub fn eval_map(list: &[Value], env: &mut EnvPtr) -> EvalResult {
             let res = vector
                 .iter()
                 .map(|v| eval_form(&[fun.clone(), v.clone()], env))
-                .collect::<Result<Vec<Value>, String>>()?;
+                .collect::<Result<Vec<Value>, LankError>>()?;
             Ok(Value::Vec(Rc::new(res.into())))
         }
         Value::Form(Form::Unquoted(vals)) => {
             let res = vals
-                    .iter()
-                    .map(|v| eval_form(&[fun.clone(), v.clone()], env))
-                    .collect::<Result<Vec<Value>, String>>()?;
+                .iter()
+                .map(|v| eval_form(&[fun.clone(), v.clone()], env))
+                .collect::<Result<Vec<Value>, LankError>>()?;
             Ok(Value::from(res))
         }
-        _ => Err("Map expected coll!".to_owned()),
+        _ => not_coll,
     }
 }
 
 pub fn eval_reduce(list: &[Value], env: &mut EnvPtr) -> EvalResult {
+    let not_coll = Err(LankError::WrongType("Reduce".to_owned()));
+
     let [fun, coll] = &list[..2] else {
-        return Err("Map requires args (map col value)".to_owned());
+        return not_coll;
     };
 
     let coll = if let Value::Symbol(s) = coll {
@@ -311,8 +332,8 @@ pub fn eval_reduce(list: &[Value], env: &mut EnvPtr) -> EvalResult {
     let fun = match fun {
         Value::Fun(_, _) | Value::Symbol(_) => fun.clone(),
 
-        Value::Form(Form::Unquoted(vals))=> eval_form(vals, env)?,
-        _ => return Err("Map requires fn as second arg!".to_owned()),
+        Value::Form(Form::Unquoted(vals)) => eval_form(vals, env)?,
+        _ => return not_coll,
     };
 
     match coll {
@@ -321,10 +342,10 @@ pub fn eval_reduce(list: &[Value], env: &mut EnvPtr) -> EvalResult {
             try_fold_val(&mut it, &fun, env)
         }
         Value::Form(Form::Unquoted(vals)) => {
-                let mut it = vals.iter().cloned();
-                Ok(try_fold_val(&mut it, &fun, env)?)
+            let mut it = vals.iter().cloned();
+            Ok(try_fold_val(&mut it, &fun, env)?)
         }
-        _ => Err("Map expected coll!".to_owned()),
+        _ => not_coll,
     }
 }
 
@@ -335,7 +356,7 @@ pub fn try_fold_val(
 ) -> EvalResult {
     let mut accum = match iter.next() {
         Some(v) => v,
-        None => return Err("Not enough args for reduce!".to_owned())
+        None => return Err(LankError::NumArguments("Reduce".to_owned(), 1)),
     };
 
     for x in iter {
@@ -344,7 +365,7 @@ pub fn try_fold_val(
         if res.is_ok() {
             accum = res.unwrap()
         } else {
-            return Err("Reduce error!".to_owned());
+            return Err(LankError::SyntaxError);
         }
     }
 
@@ -352,8 +373,10 @@ pub fn try_fold_val(
 }
 
 pub fn eval_apply(list: &[Value], env: &mut EnvPtr) -> EvalResult {
+    let not_coll = Err(LankError::WrongType("Apply".to_owned()));
+
     let [op, try_coll] = &list[..2] else {
-        return Err(format!("Apply expected operator && args, got {list:?}"))
+        return Err(LankError::SyntaxError);
     };
 
     let mut coll = match try_coll {
@@ -361,24 +384,20 @@ pub fn eval_apply(list: &[Value], env: &mut EnvPtr) -> EvalResult {
             let res = eval_symbol(s, env)?;
             match res {
                 Value::Vec(v) => v.iter().cloned().collect::<Vec<Value>>(),
-                 Value::Form(Form::Unquoted(vals)) => vals.to_vec(),
-                _ => return Err(format!("Apply expected coll got {res}"))
-            }
-        }
-        
-        Value::Vec(v) => {
-            v.iter().cloned().collect::<Vec<Value>>()
-        }
-
-        Value::Form(Form::Unquoted(vals)) => {
-            match eval_form(vals, env)? {
                 Value::Form(Form::Unquoted(vals)) => vals.to_vec(),
-                Value::Vec(v) => v.iter().cloned().collect::<Vec<Value>>(),
-                _ => return Err(format!("Apply expected coll got {try_coll}"))
+                _ => return not_coll,
             }
-        } 
+        }
 
-        _ => return Err(format!("Apply expected coll got {try_coll}"))
+        Value::Vec(v) => v.iter().cloned().collect::<Vec<Value>>(),
+
+        Value::Form(Form::Unquoted(vals)) => match eval_form(vals, env)? {
+            Value::Form(Form::Unquoted(vals)) => vals.to_vec(),
+            Value::Vec(v) => v.iter().cloned().collect::<Vec<Value>>(),
+            _ => return not_coll,
+        },
+
+        _ => return not_coll,
     };
 
     coll.insert(0, op.clone());

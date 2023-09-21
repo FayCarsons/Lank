@@ -1,29 +1,33 @@
-use crate::utils::error::IterResult;
+use crate::utils::error::LankError;
 
-use super::{eval_value, fun::nil, EnvPtr, EvalResult, Value, Env};
+use super::{eval_value, fun::nil, Env, EnvPtr, EvalResult, Value};
 use std::rc::Rc;
 
 pub fn eval_ternary(list: &[Value], env: &mut EnvPtr) -> EvalResult {
-    let cond = eval_value(&list[0], env).unwrap_or(Value::Void);
+    let [cond, true_body, false_body] = &list[..] else {
+        return Err(LankError::SyntaxError);
+    };
 
-    let bool = !nil(&cond);
+    let cond = eval_value(cond, env)?;
 
-    if bool {
-        eval_value(&list[1], env)
+    if nil(&cond) {
+        eval_value(false_body, env)
     } else {
-        eval_value(&list[2], env)
+        eval_value(true_body, env)
     }
 }
 
 pub fn eval_when(list: &[Value], env: &mut EnvPtr) -> EvalResult {
-    let cond = eval_value(&list[0], env).unwrap_or(Value::Void);
+    let [cond, body] = &list[..] else {
+        return Err(LankError::SyntaxError);
+    };
 
-    let bool = !nil(&cond);
+    let cond = eval_value(cond, env)?;
 
-    if bool {
-        eval_value(&list[1], env)
-    } else {
+    if nil(&cond) {
         Ok(Value::Void)
+    } else {
+        eval_value(body, env)
     }
 }
 
@@ -40,7 +44,7 @@ pub fn eval_match(list: &[Value], env: &mut EnvPtr) -> EvalResult {
 
             for pair in rest.chunks(2) {
                 let [cond, expr] = pair else {
-                    return Err("Malformed Match Arm!".to_owned());
+                    return Err(LankError::SyntaxError);
                 };
 
                 let cond = match eval_value(cond, env) {
@@ -60,15 +64,15 @@ pub fn eval_match(list: &[Value], env: &mut EnvPtr) -> EvalResult {
 
 pub fn eval_if_let(list: &[Value], env: &mut EnvPtr) -> EvalResult {
     let [binding, true_body, false_body] = &list[..] else {
-        return Err("Syntax error".to_owned())
+        return Err(LankError::SyntaxError);
     };
 
     let Value::Vec(binding) = binding else {
-        return Err("Syntax error".to_owned())
+        return Err(LankError::SyntaxError);
     };
 
     let [name, val] = binding.iter().collect::<Vec<&Value>>()[..] else {
-        return Err("Syntax error".to_owned())
+        return Err(LankError::SyntaxError);
     };
 
     let val = eval_value(&val, env)?;
@@ -77,7 +81,7 @@ pub fn eval_if_let(list: &[Value], env: &mut EnvPtr) -> EvalResult {
         eval_value(false_body, env)
     } else {
         let Value::Symbol(name) = name else {
-            return Err("Syntax error".to_owned())
+            return Err(LankError::SyntaxError);
         };
         let mut temp_env = Env::new_extended(env.clone());
         temp_env.borrow_mut().set(&name, val);
@@ -87,15 +91,15 @@ pub fn eval_if_let(list: &[Value], env: &mut EnvPtr) -> EvalResult {
 
 pub fn eval_when_let(list: &[Value], env: &mut EnvPtr) -> EvalResult {
     let [binding, body] = &list[..] else {
-        return Err("Syntax error".to_owned())
+        return Err(LankError::SyntaxError);
     };
 
     let Value::Vec(binding) = binding else {
-        return Err("Syntax error".to_owned())
+        return Err(LankError::SyntaxError);
     };
 
     let [name, val] = binding.iter().collect::<Vec<&Value>>()[..] else {
-        return Err("Syntax error".to_owned())
+        return Err(LankError::SyntaxError);
     };
 
     let val = eval_value(&val, env)?;
@@ -104,7 +108,7 @@ pub fn eval_when_let(list: &[Value], env: &mut EnvPtr) -> EvalResult {
         Ok(Value::Void)
     } else {
         let Value::Symbol(name) = name else {
-            return Err("Syntax error".to_owned())
+            return Err(LankError::SyntaxError);
         };
         let mut temp_env = Env::new_extended(env.clone());
         temp_env.borrow_mut().set(&name, val);
@@ -114,7 +118,7 @@ pub fn eval_when_let(list: &[Value], env: &mut EnvPtr) -> EvalResult {
 
 pub fn eval_if_not(list: &[Value], env: &mut EnvPtr) -> EvalResult {
     let [cond, true_body, false_body] = list else {
-        return Err("Syntax error".to_owned())
+        return Err(LankError::SyntaxError);
     };
 
     let cond = eval_value(cond, env)?;
@@ -128,7 +132,7 @@ pub fn eval_if_not(list: &[Value], env: &mut EnvPtr) -> EvalResult {
 
 pub fn eval_when_not(list: &[Value], env: &mut EnvPtr) -> EvalResult {
     let [cond, body] = list else {
-        return Err("Syntax error".to_owned())
+        return Err(LankError::SyntaxError);
     };
 
     let cond = eval_value(cond, env)?;

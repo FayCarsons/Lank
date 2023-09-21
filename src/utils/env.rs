@@ -62,7 +62,9 @@ impl Env {
                 .collect(),
             parent: if let Some(p) = &self.parent {
                 Some(p.clone())
-            } else { other.parent },
+            } else {
+                other.parent
+            },
         }
     }
 }

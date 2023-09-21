@@ -1,4 +1,7 @@
-use super::{error::EvalResult, value::{Value, Form}};
+use super::{
+    error::{EvalResult, LankError},
+    value::{Form, Value},
+};
 
 use std::{collections::VecDeque, rc::Rc, sync::OnceLock};
 
@@ -35,8 +38,12 @@ impl FromPest for Value {
 
                 match rule {
                     Rule::Vec => Value::Vec(Rc::new(tokens.collect::<VecDeque<Value>>())),
-                    Rule::NonQuotedForm => Value::Form(Form::Unquoted(Rc::new(tokens.collect::<Vec<Value>>()))),
-                    Rule::QuotedForm => Value::Form(Form::Quoted(Rc::new(tokens.collect::<Vec<Value>>()))),
+                    Rule::NonQuotedForm => {
+                        Value::from(tokens.collect::<Vec<Value>>())
+                    }
+                    Rule::QuotedForm => {
+                        Value::from(tokens.collect::<Vec<Value>>())
+                    }
                     _ => unreachable!(),
                 }
             }
@@ -51,7 +58,7 @@ impl FromPest for Value {
                 if let Ok(num) = can_parse {
                     Value::Number(num)
                 } else {
-                    return Err("cannot parse number".to_owned());
+                    return Err(LankError::NotANumber);
                 }
             }
             _ => Value::from_pest(pair)?,
@@ -82,5 +89,5 @@ pub fn parse(program: &str) -> EvalResult {
         }
     }
 
-    Value::from_pest(parsed?.next().unwrap())
+    Ok(Value::from_pest(parsed?.next().unwrap())?)
 }

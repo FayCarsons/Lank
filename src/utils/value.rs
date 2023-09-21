@@ -1,12 +1,11 @@
 use std::{
-    collections::{VecDeque, HashMap},
+    collections::{HashMap, VecDeque},
     fmt,
     rc::Rc,
 };
 
 pub type Seq = Rc<Vec<Value>>;
 pub type Vector = Rc<VecDeque<Value>>;
-pub type Map = Box<HashMap<Rc<str>, Value>>;
 
 #[derive(Debug, Clone, PartialEq, PartialOrd)]
 pub enum Form {
@@ -16,7 +15,6 @@ pub enum Form {
 
 impl Value {
     pub const NIL: Value = Value::Void;
-
 }
 
 #[derive(Debug, Clone, PartialEq, PartialOrd)]
@@ -32,15 +30,27 @@ pub enum Value {
     Fun(Rc<Vec<String>>, Rc<Vec<Value>>),
 }
 
-impl From<Rc<Vec<Value>>> for Value {
-    fn from(ptr: Rc<Vec<Self>>) -> Self {
-        Value::Form(Form::Unquoted(ptr))
+impl From<Rc<[Value]>> for Value {
+    fn from(ptr: Rc<[Value]>) -> Self {
+        Value::Form(Form::Unquoted(Rc::from(ptr.to_vec())))
     }
 }
 
 impl From<Vec<Value>> for Value {
     fn from(coll: Vec<Self>) -> Self {
-        Self::Form(Form::Unquoted(Rc::new(coll)))
+        Self::Form(Form::Unquoted(Rc::from(coll)))
+    }
+}
+
+impl From<String> for Value {
+    fn from(value: String) -> Self {
+        Value::Symbol(Rc::from(value))
+    }
+}
+
+impl From<Vec<String>> for Value {
+    fn from(value: Vec<String>) -> Self {
+        Value::from(value.iter().map(|s| Value::from(s.clone())).collect::<Vec<Value>>())
     }
 }
 
@@ -64,7 +74,7 @@ impl From<f64> for Value {
 
 impl From<i64> for Value {
     fn from(value: i64) -> Self {
-        Value::Number(value as f64   )
+        Value::Number(value as f64)
     }
 }
 
@@ -80,22 +90,19 @@ impl AsRef<Value> for Value {
     }
 }
 
-
 impl fmt::Display for Value {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Self::Void => write!(f, ""),
-            Self::Form(form) => {
-                match form {
-                    Form::Quoted(fr) | Form::Unquoted(fr) => {
-                        write!(f, "(")?;
-                        for token in fr.iter() {
-                            write!(f, "{token} ")?;
-                        }
-                        write!(f, ") ")
+            Self::Form(form) => match form {
+                Form::Quoted(fr) | Form::Unquoted(fr) => {
+                    write!(f, "(")?;
+                    for token in fr.iter() {
+                        write!(f, "{token} ")?;
                     }
+                    write!(f, ") ")
                 }
-            }
+            },
             Self::Number(n) => write!(f, "{n}"),
             Self::Bool(b) => write!(f, "{b}"),
             Self::String(s) => write!(f, "{s}"),
