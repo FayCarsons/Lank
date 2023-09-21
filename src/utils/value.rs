@@ -4,6 +4,8 @@ use std::{
     rc::Rc,
 };
 
+use crate::core::eval_value;
+
 pub type Seq = Rc<Vec<Value>>;
 pub type Vector = Rc<VecDeque<Value>>;
 
@@ -11,6 +13,16 @@ pub type Vector = Rc<VecDeque<Value>>;
 pub enum Form {
     Quoted(Seq),
     Unquoted(Seq),
+}
+
+impl std::fmt::Display for Form {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Quoted(tokens) | Self::Unquoted(tokens) => tokens.iter().map(|token| {
+                write!(f, "{token}")
+            }).collect::<Result<(), std::fmt::Error>>()
+        }
+    }
 }
 
 impl Value {
@@ -65,6 +77,12 @@ impl From<String> for Value {
     }
 }
 
+impl From<&str> for Value {
+    fn from(value: &str) -> Self {
+        Value::String(Rc::from(value))
+    }
+}
+
 impl From<Vec<String>> for Value {
     fn from(value: Vec<String>) -> Self {
         Value::from(
@@ -109,6 +127,22 @@ impl From<bool> for Value {
 impl AsRef<Value> for Value {
     fn as_ref(&self) -> &Self {
         self
+    }
+}
+
+impl From<Value> for String {
+    fn from(value: Value) -> Self {
+        match value {
+            Value::Char(c) => c.to_string(),
+            Value::String(s) => s.to_string(),
+            Value::Form(form) => format!("{form}"),
+            Value::Bool(b) => (if b {"true"} else {"false"}).to_string(),
+            Value::Number(n) => n.to_string(),
+            Value::Fun(_, _) => format!("{value}"),
+            Value::Symbol(s) => s.to_string(),
+            Value::Void => "".to_string(),
+            Value::Vec(v) => format!("{v:?}")
+        }
     }
 }
 

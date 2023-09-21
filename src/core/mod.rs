@@ -88,6 +88,7 @@ fn eval_form(list: &[Value], env: &mut EnvPtr) -> EvalResult {
                 "reduce" => eval_reduce(&list[1..], env),
                 "apply" => eval_apply(&list[1..], env),
                 "concat" => eval_concat(&list[1..], env),
+                "format" => eval_format(&list[1..], env),
                 _ => eval_fn_call(s, &list[1..], env),
             }
         }

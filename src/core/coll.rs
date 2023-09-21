@@ -21,16 +21,7 @@ pub fn make_coll(coll_type: &str, list: &[Value], env: &mut EnvPtr) -> EvalResul
                 .map(|v| eval_value(v, env))
                 .collect::<IterResult>()?,
         ),
-        "str" => {
-            let res = list
-                .iter()
-                .cloned()
-                .try_reduce(|a, b| eval_concat(&[a, b], env))?;
-            if res.is_none() {
-                return Err(LankError::WrongType("String".to_owned()));
-            }
-            res.unwrap()
-        }
+        "str" => eval_concat(list, env)?,
         _ => unreachable!(),
     };
     Ok(coll)
@@ -426,22 +417,31 @@ pub fn eval_concat(list: &[Value], env: &mut EnvPtr) -> EvalResult {
         .map(|v| eval_value(v, env))
         .collect::<IterResult>()?;
 
-    let [lhs, rhs] = &args[..] else {
-        return Err(LankError::NumArguments("Concat".to_owned(), 2));
+    let string = args.iter().cloned().map(String::from).reduce(|a, b| a + &b);
+
+    if string.is_none() {
+        return Err(LankError::WrongType("Concat".to_owned()));
+    }
+
+    Ok(Value::from(string.unwrap()))
+}
+
+pub fn eval_format(list: &[Value], env: &mut EnvPtr) -> EvalResult {
+    let args = list
+        .iter()
+        .map(|v| eval_value(v, env))
+        .collect::<IterResult>()?;
+
+    let string = args.first();
+
+    let string = match string {
+        Some(Value::String(s)) => s.to_string(),
+        _ => return Err(LankError::WrongType("Format".to_owned())),
     };
 
-    match (lhs, rhs) {
-        (Value::String(s), Value::Char(c)) => {
-            //let s = s.replace("\"", "");
-            let s = format!("{s}{c}");
-            Ok(Value::from(s))
-        }
-        (Value::Char(c), Value::String(s)) => {
-            let s = format!("{c}{s}");
-            Ok(Value::from(s))
-        }
-        (Value::Char(a), Value::Char(b)) => Ok(Value::from(format!("{a}{b}"))),
-        (Value::String(a), Value::String(b)) => Ok(Value::from(a.to_string() + &b)),
-        _ => Err(LankError::WrongType("concat".to_owned())),
-    }
+    let string = String::from_iter(string.split("{}").zip(args[1..].iter()).map(|(str, val)| {
+        str.to_owned() + &String::from(val.clone())
+    }));
+
+    Ok(Value::from(string))
 }
