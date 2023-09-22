@@ -64,7 +64,6 @@ impl From<LankError> for String {
             LankError::Other(s)
             | LankError::ParseError(s)
             | LankError::ReadlineError(s)
-            | LankError::Other(s)
             | LankError::UnknownFunction(s)
             | LankError::WrongType(s) => s,
         }
@@ -87,7 +86,7 @@ impl std::fmt::Display for LankError {
                 write!(f, "{s}")
             }
             LankError::UnknownFunction(s) => write!(f, "{s} is not a function!"),
-            LankError::WrongType(s) => write!(f, "Wrong type in {s}"),
+            LankError::WrongType(s) => write!(f, "{s}: wrong type!"),
         }
     }
 }

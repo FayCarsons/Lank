@@ -1,10 +1,8 @@
 use std::{
-    collections::{HashMap, VecDeque},
+    collections::VecDeque,
     fmt,
     rc::Rc,
 };
-
-use crate::core::eval_value;
 
 pub type Seq = Rc<Vec<Value>>;
 pub type Vector = Rc<VecDeque<Value>>;
@@ -17,11 +15,13 @@ pub enum Form {
 
 impl std::fmt::Display for Form {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "(")?;
         match self {
-            Self::Quoted(tokens) | Self::Unquoted(tokens) => tokens.iter().map(|token| {
-                write!(f, "{token}")
-            }).collect::<Result<(), std::fmt::Error>>()
-        }
+            Self::Quoted(tokens) | Self::Unquoted(tokens) => tokens.iter().enumerate().try_for_each(|(i, token)| {
+                write!(f, "{token}{}", if i < tokens.len() - 1 {" "} else {""})
+            })
+        }?;
+        write!(f, ")")
     }
 }
 
@@ -141,7 +141,7 @@ impl From<Value> for String {
             Value::Fun(_, _) => format!("{value}"),
             Value::Symbol(s) => s.to_string(),
             Value::Void => "".to_string(),
-            Value::Vec(v) => format!("{v:?}")
+            Value::Vec(_) => format!("{}", value.clone())
         }
     }
 }
@@ -150,15 +150,7 @@ impl fmt::Display for Value {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Self::Void => write!(f, ""),
-            Self::Form(form) => match form {
-                Form::Quoted(fr) | Form::Unquoted(fr) => {
-                    write!(f, "(")?;
-                    for token in fr.iter() {
-                        write!(f, "{token} ")?;
-                    }
-                    write!(f, ") ")
-                }
-            },
+            Self::Form(form) => write!(f, "{form}"),
             Self::Number(n) => write!(f, "{n}"),
             Self::Bool(b) => write!(f, "{b}"),
             Self::String(s) => write!(f, "\"{s}\""),
@@ -170,15 +162,15 @@ impl fmt::Display for Value {
                     write!(f, "{param}")?;
                 }
                 write!(f, ") (")?;
-                for expr in body.iter() {
-                    write!(f, "{expr} ")?;
+                for (i, val) in body.iter().enumerate() {
+                    write!(f, "{val}{}", if i < body.len() - 1 {" "} else {""})?;
                 }
                 write!(f, "))")
             }
             Self::Vec(v) => {
                 write!(f, "[")?;
-                for val in v.iter() {
-                    write!(f, "{val} ")?;
+                for (i, val) in v.iter().enumerate() {
+                    write!(f, "{val}{}", if i < v.len() - 1 {" "} else {""})?;
                 }
                 write!(f, "]")
             }
