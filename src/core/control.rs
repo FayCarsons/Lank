@@ -4,7 +4,7 @@ use crate::utils::{
 };
 
 use super::{eval_form, eval_value, fun::*, Env, EnvPtr, EvalResult, Value};
-use std::rc::Rc;
+use std::{iter, rc::Rc};
 
 pub fn eval_def(list: &[Value], env: &mut EnvPtr) -> EvalResult {
     let def_err = Err(LankError::SyntaxError);
@@ -24,13 +24,17 @@ pub fn eval_def(list: &[Value], env: &mut EnvPtr) -> EvalResult {
 }
 
 pub fn eval_nil(list: &[Value], env: &mut EnvPtr) -> EvalResult {
-    let val = list.first();
+    let val = list.first().ok_or(LankError::NoChildren)?;
 
-    if val.is_none() {
-        return Err(LankError::FunctionFormat);
-    }
+    let val = eval_value(val, env)?;
 
-    let val = eval_value(val.unwrap(), env)?;
+    Ok(Value::Bool(nil(&val)))
+}
+
+pub fn eval_some(list: &[Value], env: &mut EnvPtr) -> EvalResult {
+    let val = list.first().ok_or(LankError::NoChildren)?;
+
+    let val = eval_value(val, env)?;
 
     Ok(Value::Bool(!nil(&val)))
 }
@@ -81,13 +85,9 @@ pub fn eval_fn_def(list: &[Value]) -> EvalResult {
 }
 
 pub fn defn(list: &[Value], env: &mut EnvPtr) -> EvalResult {
-    let spl = list.split_first();
-
-    if spl.is_none() {
-        return Err(LankError::SyntaxError);
-    }
-
-    let (name, fun) = spl.unwrap();
+    let (name, fun) = list
+        .split_first()
+        .ok_or(LankError::NumArguments("Defn".to_owned(), 2))?;
 
     let fun = match eval_fn_def(fun) {
         Ok(f) => f,
@@ -98,13 +98,12 @@ pub fn defn(list: &[Value], env: &mut EnvPtr) -> EvalResult {
 }
 
 pub fn eval_fn_call(name: &str, list: &[Value], env: &mut EnvPtr) -> EvalResult {
-    let func = env.borrow_mut().get(name);
+    let func = env
+        .borrow_mut()
+        .get(name)
+        .ok_or(LankError::UnknownFunction(name.to_string()))?;
 
-    if func.is_none() {
-        return Err(LankError::UnknownFunction(name.to_string()));
-    }
-
-    match func.unwrap() {
+    match func {
         Value::Fun(params, body) => {
             let mut temp_env = Env::new_extended(env.clone());
             let vals = list
@@ -147,4 +146,21 @@ pub fn eval_let(list: &[Value], env: &mut EnvPtr) -> EvalResult {
         })?;
 
     eval_value(body, &mut temp_env)
+}
+
+pub fn eval_repeat(list: &[Value], env: &mut EnvPtr) -> EvalResult {
+    let [num, expr] = list else {
+        return Err(LankError::NumArguments("repeat".to_owned(), 2));
+    };
+
+    let Value::Number(num) = eval_value(num, env)? else {
+        return Err(LankError::WrongType("repeat".to_owned()));
+    };
+
+    let coll = iter::repeat(expr)
+        .take(num as usize)
+        .map(|v| eval_value(v, env))
+        .collect::<IterResult>()?;
+
+    Ok(Value::from(coll))
 }

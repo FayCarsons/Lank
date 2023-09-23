@@ -1,6 +1,6 @@
 use super::value::Value;
 use core::fmt::Debug;
-use std::{fmt, hash::Hash};
+use std::hash::Hash;
 
 #[derive(Debug, Clone)]
 pub enum LankError {

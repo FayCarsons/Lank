@@ -1,6 +1,8 @@
 #![allow(non_upper_case_globals)]
 use rand::{thread_rng, Rng};
 use std::{
+    collections::VecDeque,
+    convert,
     fs::File,
     io::{Read, Write},
     rc::Rc,
@@ -9,8 +11,6 @@ use std::{
 use crate::utils::error::{IterResult, LankError};
 
 use super::{eval, eval_form, eval_value, Env, EnvPtr, EvalResult, Value};
-
-const ArithmeticError: &str = "Incorrect Arithmetic Args";
 
 pub fn eval_lambda_call(
     params: &Rc<Vec<String>>,
@@ -147,7 +147,12 @@ pub fn eval_unary(list: &[Value], env: &mut EnvPtr) -> EvalResult {
 
 // TODO figure out float nil, maybe epsilon ?
 pub fn nil(x: &Value) -> bool {
-    matches!(x, Value::Void | Value::Number(0f64) | Value::Bool(false))
+    match x {
+        Value::Void => true,
+        Value::Bool(b) if !b => true,
+        Value::Number(n) if *n == 0. => true,
+        _ => false,
+    }
 }
 
 // IMPLEMENT ARBITRARY ARITIES
@@ -251,5 +256,40 @@ pub fn eval_type_of(list: &[Value], env: &mut EnvPtr) -> EvalResult {
         .map(|v| eval_value(v, env))
         .collect::<IterResult>()?;
 
-    Ok(Value::String(Rc::from(list[0].type_of())))
+    Ok(Value::Symbol(Rc::from(list[0].type_of())))
+}
+
+pub fn eval_long(list: &[Value], env: &mut EnvPtr) -> EvalResult {
+    let arg = eval_value(&list[0], env)?;
+
+    let Value::Number(n) = arg else {
+        return Err(LankError::WrongType("Long".to_owned()));
+    };
+
+    Ok(Value::Number(n.floor()))
+}
+
+pub fn eval_char(list: &[Value], env: &mut EnvPtr) -> EvalResult {
+    let arg = eval_value(&list[0], env)?;
+
+    match arg {
+        Value::Number(n) => {
+            let int = u8::try_from(n as u32).map_err(|err| err.to_string())?;
+            let char = char::from(int);
+            Ok(Value::Char(char))
+        }
+        Value::String(s) => {
+            if s.len() == 1 {
+                Ok(Value::Char(
+                    s.chars()
+                        .nth(0)
+                        .ok_or(LankError::WrongType("Char".to_owned()))?,
+                ))
+            } else {
+                Err(LankError::WrongType("Char".to_owned()))
+            }
+        }
+        Value::Char(_) => Ok(arg),
+        _ => Err(LankError::WrongType("Char".to_owned())),
+    }
 }

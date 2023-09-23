@@ -15,6 +15,7 @@ use pest::{iterators::Pair, Parser};
 #[derive(pest_derive::Parser)]
 #[grammar = "lank.pest"]
 struct LankParser;
+
 pub trait FromPest {
     fn from_pest(pair: Pair<Rule>) -> EvalResult;
 }
@@ -23,6 +24,7 @@ impl FromPest for Value {
     fn from_pest(pair: Pair<Rule>) -> EvalResult {
         let rule = pair.as_rule();
         let val: Value = match rule {
+            Rule::Void => Value::Void,
             Rule::Form => Value::from_pest(pair.into_inner().next().unwrap())?,
             Rule::Vec | Rule::QuotedForm | Rule::NonQuotedForm => {
                 let tokens = pair
@@ -37,15 +39,17 @@ impl FromPest for Value {
                 let tokens = tokens.iter().map(|v| v.clone().unwrap());
 
                 match rule {
-                    Rule::Vec => Value::Vec(Rc::new(tokens.collect::<VecDeque<Value>>())),
+                    Rule::Vec => Value::from(tokens.collect::<VecDeque<Value>>()),
                     Rule::NonQuotedForm => Value::from(tokens.collect::<Vec<Value>>()),
-                    Rule::QuotedForm => Value::from(tokens.collect::<Vec<Value>>()),
+                    Rule::QuotedForm => {
+                        Value::Form(Form::Quoted(Rc::new(tokens.collect::<Vec<Value>>())))
+                    }
                     _ => unreachable!(),
                 }
             }
-            Rule::Map => Value::String(Rc::from("This is a hashmap")),
+            Rule::Map => Value::from("This is a hashmap"),
             Rule::Primitive => Self::from_pest(pair.into_inner().next().unwrap())?,
-            Rule::Bool => Value::Bool(matches!(pair.as_str(), "true")),
+            Rule::Bool => Value::from(matches!(pair.as_str(), "true")),
             Rule::String => {
                 let str = pair.as_str();
                 Value::from(str[1..str.len() - 1].to_owned())
@@ -56,9 +60,23 @@ impl FromPest for Value {
                 Value::Char(char::from(str[1..str.len() - 1].as_bytes()[0]))
             }
             Rule::Number => {
-                Value::Number(str::parse::<f64>(pair.as_str()).map_err(|err| err.to_string())?)
+                if let Ok(num) = str::parse::<f64>(pair.as_str()).map_err(|err| err.to_string()) {
+                    Value::Number(num)
+                } else if let Ok(num) =
+                    u16::from_str_radix(&pair.as_str()[..16], 2).map_err(|err| err.to_string())
+                {
+                    Value::BitSeq(num)
+                } else if let Ok(num) =
+                    u64::from_str_radix(&pair.as_str()[2..], 16).map_err(|err| err.to_string())
+                {
+                    Value::Number(num as f64)
+                } else {
+                    return Err(LankError::ParseError(format!(
+                        "Invalid number: {}",
+                        pair.as_str()
+                    )));
+                }
             }
-
             _ => Value::from_pest(pair)?,
         };
 
@@ -67,14 +85,12 @@ impl FromPest for Value {
 }
 
 pub fn parse(program: &str) -> EvalResult {
-    //let program = program.replace("(", " ( ").replace(")", " ) ").replace("[", " [ ").replace("]", " ] ");
-
     let print_tokens = CONFIG
         .get_or_init(|| {
             let env_args: Vec<String> = std::env::args().collect();
             Config {
-                print_tokens: env_args.contains(&"--print-ast".to_owned())
-                    || env_args.contains(&"-p".to_owned()),
+                print_tokens: env_args.contains(&"--print-ast".to_string())
+                    || env_args.contains(&"-p".to_string()),
             }
         })
         .print_tokens;

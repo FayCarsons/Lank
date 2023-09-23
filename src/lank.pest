@@ -1,7 +1,5 @@
 // * Zero or more
 // + One or more
-
-
 Program = _{ SOI ~ Form* ~ EOI }
 
 WHITESPACE = _{ " " | "\t" | NEWLINE }
@@ -9,22 +7,26 @@ COMMENT = _{ SingleLineComment | MultilineComment }
 SingleLineComment = _{ "//" ~ (!NEWLINE ~ ANY)* ~ (NEWLINE | EOI) }
 MultilineComment = _{ "/*" ~ (!"*/" ~ ANY)* ~ "*/" }
 
+Void = @{ "Void" | "void" }
+Char = { "\'" ~ ('a'..'z' | 'A'..'Z'){1} ~ "\'"}
+Number = @{ HexDigit | BinaryDigit | FloatLiteral}
+    FloatLiteral = {"-"? ~ (ASCII_DIGIT)+ ~ "."? ~ ASCII_DIGIT*}
+    BinaryDigit = {"0b" ~ ASCII_BIN_DIGIT{1, 16}}
+    HexDigit = {"0x" ~ ASCII_HEX_DIGIT{2, 16}}
+
 Form = { QuotedForm | NonQuotedForm }
-QuotedForm = ${ "`" ~ NonQuotedForm }
-NonQuotedForm = { "(" ~ (Primitive | Vec | Map | Form)+ ~ ")" }
+QuotedForm = { "'" ~ NonQuotedForm }
+NonQuotedForm = { "(" ~ (Primitive | Vec | Map | Form)* ~ ")" }
 
 Vec = { "[" ~ ((Form | Primitive | Vec) ~ WHITESPACE*)* ~ "]" }
 Map = { "{" ~ ((Form | Primitive | Vec) ~ (Form | Primitive | Vec))* ~ "}"}
 
-Primitive = { String | Char | Bool | Number | Symbol }
+Primitive = { Void | String | Char | Bool | Number | Symbol }
 
 String = { "\"" ~ StringInner ~ "\"" }
 StringInner = @{ (!("\"" | "\'") ~ ANY)* }
-Char = { "\'" ~ ('a'..'z' | 'A'..'Z'){1} ~ "\'"}
 
 Bool = @{ "true" | "false"}
-
-Number = @{ "-"? ~ ASCII_DIGIT+ ~ "."? ~ ASCII_DIGIT*}
 
 Symbol = @{ (!SymbolForbiddenChar ~ ANY)+ }
 SymbolForbiddenChar = { "\"" | ";" | "(" | ")" | "[" | "]" | "`" | "'" | WHITESPACE }

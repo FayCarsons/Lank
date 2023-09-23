@@ -1,5 +1,3 @@
-use std::rc::Rc;
-
 pub use crate::utils;
 pub use utils::{
     env::{Env, EnvPtr},
@@ -9,18 +7,20 @@ pub use utils::{
     BINARY_OPS, BOOL_OPS, UNARY_OPS,
 };
 
+mod bit;
 mod coll;
 mod conditional;
 mod control;
 mod fun;
-
-use coll::*;
-use control::*;
+mod loops;
 
 use self::{
+    bit::*,
+    coll::*,
     conditional::*,
     control::*,
     fun::*,
+    loops::*,
     utils::{
         error::{IterResult, LankError},
         value::Form,
@@ -56,40 +56,75 @@ fn eval_form(list: &[Value], env: &mut EnvPtr) -> EvalResult {
         Value::Symbol(s) if BOOL_OPS.contains(&&**s) => eval_bool(list, env),
         Value::Symbol(s) => {
             let s = &**s;
+            let list = &list[1..];
             match s {
-                "def" => eval_def(&list[1..], env),
-                "defn" => defn(&list[1..], env),
-                "type-of" => eval_type_of(&list[1..], env),
-                "let" => eval_let(&list[1..], env),
-                "if" | "?" => eval_ternary(&list[1..], env),
-                "if-let" => eval_if_let(&list[1..], env),
-                "when-let" => eval_when_let(&list[1..], env),
-                "if-not" => eval_if_not(&list[1..], env),
-                "when-not" => eval_when_not(&list[1..], env),
-                "when" => eval_when(&list[1..], env),
-                "match" => eval_match(&list[1..], env),
-                "do" => eval_do(&list[1..], env),
-                "fn" => eval_fn_def(&list[1..]),
-                "display" => display(&list[1..], env),
-                "run-file" => run_file(&list[1..]),
-                "rand" => gen_rand(&list[1..], env),
-                "rand-nth" => rand_nth(&list[1..], env),
-                "nil?" => eval_nil(&list[1..], env),
-                "nth" => eval_nth(&list[1..], env),
-                "list" | "vec" | "str" => make_coll(s, &list[1..], env),
-                "first" => eval_first(&list[1..], env),
-                "second" => eval_second(&list[1..], env),
-                "last" => eval_last(&list[1..], env),
-                "rest" => eval_rest(&list[1..], env),
-                "split" => todo!(),
-                "prepend" => eval_prepend(&list[1..], env),
-                "append" => eval_append(&list[1..], env),
-                "map" => eval_map(&list[1..], env),
-                "reduce" => eval_reduce(&list[1..], env),
-                "apply" => eval_apply(&list[1..], env),
-                "concat" => eval_concat(&list[1..], env),
-                "format" => eval_format(&list[1..], env),
-                _ => eval_fn_call(s, &list[1..], env),
+                "def" => eval_def(list, env),
+                "defn" => defn(list, env),
+                "type-of" => eval_type_of(list, env),
+                "let" => eval_let(list, env),
+                "do" => eval_do(list, env),
+                "fn" => eval_fn_def(list),
+                "display" => display(list, env),
+                "run-file" => run_file(list),
+                "rand" => gen_rand(list, env),
+
+                // conditionals
+                "if" | "?" => eval_ternary(list, env),
+                "if-let" => eval_if_let(list, env),
+                "when-let" => eval_when_let(list, env),
+                "if-not" => eval_if_not(list, env),
+                "when-not" => eval_when_not(list, env),
+                "when" => eval_when(list, env),
+                "match" => eval_match(list, env),
+
+                // type testing
+                "nil?" => eval_nil(list, env),
+                "some?" => eval_some(list, env),
+                "char?" => eval_is_char(list, env),
+                "number?" => eval_is_num(list, env),
+                "coll?" => eval_is_coll(list, env),
+                "vec?" => eval_is_vec(list, env),
+                "list?" => eval_is_list(list, env),
+                "string?" => eval_is_string(list, env),
+                "symbol?" => eval_is_symbol(list, env),
+                "bool?" => eval_is_bool(list, env),
+                "fn?" => eval_is_fun(list, env),
+
+                // type coercion
+                "char" => eval_char(list, env),
+                "long" => eval_long(list, env),
+
+                // collections (this includes strings)
+                "nth" => eval_nth(list, env),
+                "rand-nth" => rand_nth(list, env),
+                "list" | "vec" | "str" | "bit-seq" => make_coll(s, list, env),
+                "range" => eval_range(list, env),
+                "count" => eval_count(list, env),
+                "first" => eval_first(list, env),
+                "second" => eval_second(list, env),
+                "last" => eval_last(list, env),
+                "rest" => eval_rest(list, env),
+                "prepend" => eval_prepend(list, env),
+                "append" => eval_append(list, env),
+                "reverse" => eval_reverse(list, env),
+                "map" => eval_map(list, env),
+                "map-indexed" => eval_map_indexed(list, env),
+                "reduce" => eval_reduce(list, env),
+                "filter" => eval_filter(list, env),
+                "repeat" => eval_repeat(list, env),
+                "apply" => eval_apply(list, env),
+                "concat" => eval_concat(list, env),
+                "format" => eval_format(list, env),
+                "bytes" => eval_bytes(list, env),
+
+                // Bit-seq
+                "bit-set" => set_bit(list, env),
+                "bit-get" => get_bit(list, env),
+                "bit-toggle" => toggle_bit(list, env),
+                "bit-clear" => clear_bit(list, env),
+                "count-ones" => count_set(list, env),
+
+                _ => eval_fn_call(s, list, env),
             }
         }
 

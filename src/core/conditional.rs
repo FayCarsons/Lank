@@ -1,4 +1,4 @@
-use crate::utils::error::LankError;
+use crate::utils::{error::LankError, value::Form};
 
 use super::{eval_value, fun::nil, Env, EnvPtr, EvalResult, Value};
 use std::rc::Rc;
@@ -141,5 +141,123 @@ pub fn eval_when_not(list: &[Value], env: &mut EnvPtr) -> EvalResult {
         eval_value(body, env)
     } else {
         Ok(Value::Void)
+    }
+}
+
+pub fn eval_is_char(list: &[Value], env: &mut EnvPtr) -> EvalResult {
+    let arg = list
+        .first()
+        .ok_or(LankError::NumArguments("Char?".to_owned(), 1))?;
+    let arg = eval_value(arg, env)?;
+
+    if let Value::Char(_) = arg {
+        Ok(Value::from(true))
+    } else {
+        Ok(Value::from(false))
+    }
+}
+
+pub fn eval_is_num(list: &[Value], env: &mut EnvPtr) -> EvalResult {
+    let arg = list
+        .first()
+        .ok_or(LankError::NumArguments("Char?".to_owned(), 1))?;
+    let arg = eval_value(arg, env)?;
+
+    if let Value::Number(_) = arg {
+        Ok(Value::from(true))
+    } else {
+        Ok(Value::from(false))
+    }
+}
+
+pub fn eval_is_coll(list: &[Value], env: &mut EnvPtr) -> EvalResult {
+    let arg = list
+        .first()
+        .ok_or(LankError::NumArguments("Char?".to_owned(), 1))?;
+    let arg = eval_value(arg, env)?;
+
+    match arg {
+        Value::Form(Form::Unquoted(_)) => Ok(Value::from(true)),
+        Value::Vec(_) => Ok(Value::from(true)),
+        _ => Ok(Value::from(false)),
+    }
+}
+
+pub fn eval_is_vec(list: &[Value], env: &mut EnvPtr) -> EvalResult {
+    let arg = list
+        .first()
+        .ok_or(LankError::NumArguments("Char?".to_owned(), 1))?;
+    let arg = eval_value(arg, env)?;
+
+    if let Value::Vec(_) = arg {
+        Ok(Value::from(true))
+    } else {
+        Ok(Value::from(false))
+    }
+}
+
+pub fn eval_is_list(list: &[Value], env: &mut EnvPtr) -> EvalResult {
+    let arg = list
+        .first()
+        .ok_or(LankError::NumArguments("Char?".to_owned(), 1))?;
+    let arg = eval_value(arg, env)?;
+
+    if let Value::Form(_) = arg {
+        Ok(Value::from(true))
+    } else {
+        Ok(Value::from(false))
+    }
+}
+
+pub fn eval_is_string(list: &[Value], env: &mut EnvPtr) -> EvalResult {
+    let arg = list
+        .first()
+        .ok_or(LankError::NumArguments("Char?".to_owned(), 1))?;
+    let arg = eval_value(arg, env)?;
+
+    if let Value::String(_) = arg {
+        Ok(Value::from(true))
+    } else {
+        Ok(Value::from(false))
+    }
+}
+
+pub fn eval_is_symbol(list: &[Value], env: &mut EnvPtr) -> EvalResult {
+    let arg = list
+        .first()
+        .ok_or(LankError::NumArguments("Char?".to_owned(), 1))?;
+    let arg = eval_value(arg, env)?;
+
+    if let Value::Symbol(_) = arg {
+        Ok(Value::from(true))
+    } else {
+        Ok(Value::from(false))
+    }
+}
+
+pub fn eval_is_bool(list: &[Value], env: &mut EnvPtr) -> EvalResult {
+    let arg = list
+        .first()
+        .ok_or(LankError::NumArguments("Char?".to_owned(), 1))?;
+    let arg = eval_value(arg, env)?;
+
+    if let Value::Bool(_) = arg {
+        Ok(Value::from(true))
+    } else {
+        Ok(Value::from(false))
+    }
+}
+
+// FIX!!! Does ot recognize native fns
+pub fn eval_is_fun(list: &[Value], env: &mut EnvPtr) -> EvalResult {
+    let arg = list
+        .first()
+        .ok_or(LankError::NumArguments("Char?".to_owned(), 1))?;
+    let arg = eval_value(arg, env)?;
+
+    if let Value::Fun(_, _) = arg {
+        Ok(Value::from(true))
+    } else {
+        Ok(Value::from(false))
     }
 }

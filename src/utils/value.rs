@@ -1,11 +1,21 @@
-use std::{
-    collections::VecDeque,
-    fmt,
-    rc::Rc,
-};
+use std::{collections::VecDeque, fmt, rc::Rc};
 
 pub type Seq = Rc<Vec<Value>>;
 pub type Vector = Rc<VecDeque<Value>>;
+
+#[derive(Debug, Clone, PartialEq, PartialOrd)]
+pub enum Value {
+    Void,
+    Form(Form),
+    Number(f64),
+    String(Rc<str>),
+    Char(char),
+    Symbol(Rc<str>),
+    Bool(bool),
+    Vec(Vector),
+    BitSeq(u16),
+    Fun(Rc<Vec<String>>, Rc<Vec<Value>>),
+}
 
 #[derive(Debug, Clone, PartialEq, PartialOrd)]
 pub enum Form {
@@ -17,9 +27,11 @@ impl std::fmt::Display for Form {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "(")?;
         match self {
-            Self::Quoted(tokens) | Self::Unquoted(tokens) => tokens.iter().enumerate().try_for_each(|(i, token)| {
-                write!(f, "{token}{}", if i < tokens.len() - 1 {" "} else {""})
-            })
+            Self::Quoted(tokens) | Self::Unquoted(tokens) => {
+                tokens.iter().enumerate().try_for_each(|(i, token)| {
+                    write!(f, "{token}{}", if i < tokens.len() - 1 { " " } else { "" })
+                })
+            }
         }?;
         write!(f, ")")
     }
@@ -42,21 +54,9 @@ impl Value {
             Value::Char(_) => "Char",
             Value::Bool(_) => "Bool",
             Value::Fun(_, _) => "Function",
+            Value::BitSeq(_) => "Bit-seq",
         }
     }
-}
-
-#[derive(Debug, Clone, PartialEq, PartialOrd)]
-pub enum Value {
-    Void,
-    Form(Form),
-    Number(f64),
-    String(Rc<str>),
-    Char(char),
-    Symbol(Rc<str>),
-    Bool(bool),
-    Vec(Vector),
-    Fun(Rc<Vec<String>>, Rc<Vec<Value>>),
 }
 
 impl From<Rc<[Value]>> for Value {
@@ -74,6 +74,12 @@ impl From<Vec<Value>> for Value {
 impl From<String> for Value {
     fn from(value: String) -> Self {
         Value::String(Rc::from(value))
+    }
+}
+
+impl From<char> for Value {
+    fn from(value: char) -> Self {
+        Value::Char(value)
     }
 }
 
@@ -118,9 +124,39 @@ impl From<i64> for Value {
     }
 }
 
+impl From<u32> for Value {
+    fn from(value: u32) -> Self {
+        Value::Number(value as f64)
+    }
+}
+
+impl From<usize> for Value {
+    fn from(value: usize) -> Self {
+        Value::Number(value as f64)
+    }
+}
+
+impl From<u8> for Value {
+    fn from(value: u8) -> Self {
+        Value::Number(value as f64)
+    }
+}
+
 impl From<bool> for Value {
     fn from(value: bool) -> Self {
         Value::Bool(value)
+    }
+}
+
+impl<T> From<Option<T>> for Value
+where
+    Value: From<T>,
+{
+    fn from(value: Option<T>) -> Self {
+        match value {
+            Some(v) => Value::from(v),
+            None => Value::Void,
+        }
     }
 }
 
@@ -136,12 +172,13 @@ impl From<Value> for String {
             Value::Char(c) => c.to_string(),
             Value::String(s) => s.to_string(),
             Value::Form(form) => format!("{form}"),
-            Value::Bool(b) => (if b {"true"} else {"false"}).to_string(),
+            Value::Bool(b) => (if b { "true" } else { "false" }).to_string(),
             Value::Number(n) => n.to_string(),
             Value::Fun(_, _) => format!("{value}"),
             Value::Symbol(s) => s.to_string(),
             Value::Void => "".to_string(),
-            Value::Vec(_) => format!("{}", value.clone())
+            Value::Vec(_) => format!("{}", value.clone()),
+            Value::BitSeq(b) => format!("{:#018b}", b),
         }
     }
 }
@@ -149,7 +186,7 @@ impl From<Value> for String {
 impl fmt::Display for Value {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Self::Void => write!(f, ""),
+            Self::Void => write!(f, "void"),
             Self::Form(form) => write!(f, "{form}"),
             Self::Number(n) => write!(f, "{n}"),
             Self::Bool(b) => write!(f, "{b}"),
@@ -163,17 +200,18 @@ impl fmt::Display for Value {
                 }
                 write!(f, ") (")?;
                 for (i, val) in body.iter().enumerate() {
-                    write!(f, "{val}{}", if i < body.len() - 1 {" "} else {""})?;
+                    write!(f, "{val}{}", if i < body.len() - 1 { " " } else { "" })?;
                 }
                 write!(f, "))")
             }
             Self::Vec(v) => {
                 write!(f, "[")?;
                 for (i, val) in v.iter().enumerate() {
-                    write!(f, "{val}{}", if i < v.len() - 1 {" "} else {""})?;
+                    write!(f, "{val}{}", if i < v.len() - 1 { " " } else { "" })?;
                 }
                 write!(f, "]")
             }
+            Self::BitSeq(b) => write!(f, "{:#018b}", b),
         }
     }
 }
