@@ -186,7 +186,7 @@ pub fn eval_first(list: &[Value], env: &mut EnvPtr) -> EvalResult {
             }
         }
         Value::String(s) => {
-            if let Some(c) = s.chars().nth(0) {
+            if let Some(c) = s.chars().next() {
                 Value::Char(c)
             } else {
                 Value::Void
@@ -442,17 +442,10 @@ pub fn eval_map(list: &[Value], env: &mut EnvPtr) -> EvalResult {
         return not_coll;
     };
 
-    let coll = if let Value::Symbol(s) = coll {
-        eval_symbol(s, env)?
-    } else if let Value::Form(Form::Unquoted(vals)) = coll {
-        eval_form(vals, env)?
-    } else {
-        coll.clone()
-    };
+    let coll = eval_value(coll, env)?;
 
     let fun = match fun {
         Value::Fun(_, _) | Value::Symbol(_) => fun.clone(),
-
         Value::Form(Form::Unquoted(vals)) => eval_form(vals, env)?,
 
         _ => return not_coll,
@@ -473,6 +466,12 @@ pub fn eval_map(list: &[Value], env: &mut EnvPtr) -> EvalResult {
                 .collect::<IterResult>()?;
             Ok(Value::from(res))
         }
+
+        Value::Map(map) => {
+            let res = map.iter().map(|(k,v)| eval_form(&[fun.clone(), k.clone(), v.clone()], env)).collect::<IterResult>()?;
+            Ok(Value::from(VecDeque::from(res)))
+        }
+
         Value::String(s) => {
             let res = s
                 .chars()
@@ -491,17 +490,10 @@ pub fn eval_map_indexed(list: &[Value], env: &mut EnvPtr) -> EvalResult {
         return not_coll;
     };
 
-    let coll = if let Value::Symbol(s) = coll {
-        eval_symbol(s, env)?
-    } else if let Value::Form(Form::Unquoted(vals)) = coll {
-        eval_form(vals, env)?
-    } else {
-        coll.clone()
-    };
+    let coll = eval_value(coll, env)?;
 
     let fun = match fun {
         Value::Fun(_, _) | Value::Symbol(_) => fun.clone(),
-
         Value::Form(Form::Unquoted(vals)) => eval_form(vals, env)?,
 
         _ => return not_coll,
@@ -516,6 +508,7 @@ pub fn eval_map_indexed(list: &[Value], env: &mut EnvPtr) -> EvalResult {
                 .collect::<IterResult>()?;
             Ok(Value::Vec(Rc::new(res.into())))
         }
+
         Value::Form(Form::Unquoted(vals)) => {
             let res = vals
                 .iter()
@@ -523,6 +516,10 @@ pub fn eval_map_indexed(list: &[Value], env: &mut EnvPtr) -> EvalResult {
                 .map(|(idx, item)| eval_form(&[fun.clone(), Value::from(idx), item.clone()], env))
                 .collect::<IterResult>()?;
             Ok(Value::from(res))
+        }
+        Value::Map(map) => {
+            let res = map.iter().enumerate().map(|(idx, (k,v))| eval_form(&[fun.clone(), Value::from(idx), k.clone(), v.clone()], env)).collect::<IterResult>()?;
+            Ok(Value::from(VecDeque::from(res)))
         }
         Value::String(s) => {
             let res = s
@@ -545,13 +542,7 @@ pub fn eval_reduce(list: &[Value], env: &mut EnvPtr) -> EvalResult {
         return not_coll;
     };
 
-    let coll = if let Value::Symbol(s) = coll {
-        eval_symbol(s, env)?
-    } else if let Value::Form(Form::Unquoted(vals)) = coll {
-        eval_form(vals, env)?
-    } else {
-        coll.clone()
-    };
+    let coll = eval_value(coll, env)?;
 
     let fun = match fun {
         Value::Fun(_, _) | Value::Symbol(_) => fun.clone(),
@@ -569,7 +560,7 @@ pub fn eval_reduce(list: &[Value], env: &mut EnvPtr) -> EvalResult {
             try_fold_val(&mut it, &fun, env)
         }
         Value::String(s) => {
-            let mut it = s.chars().map(|c| Value::Char(c));
+            let mut it = s.chars().map(Value::Char);
             try_fold_val(&mut it, &fun, env)
         }
         _ => not_coll,
@@ -612,18 +603,18 @@ pub fn eval_apply(list: &[Value], env: &mut EnvPtr) -> EvalResult {
             match res {
                 Value::Vec(v) => v.iter().cloned().collect::<Vec<Value>>(),
                 Value::Form(Form::Unquoted(vals)) => vals.to_vec(),
-                Value::String(s) => s.chars().map(|c| Value::Char(c)).collect::<Vec<Value>>(),
+                Value::String(s) => s.chars().map(Value::Char).collect::<Vec<Value>>(),
                 _ => return not_coll,
             }
         }
 
         Value::Vec(v) => v.iter().cloned().collect::<Vec<Value>>(),
-        Value::String(s) => s.chars().map(|c| Value::Char(c)).collect::<Vec<Value>>(),
+        Value::String(s) => s.chars().map(Value::Char).collect::<Vec<Value>>(),
 
         Value::Form(Form::Unquoted(vals)) => match eval_form(vals, env)? {
             Value::Form(Form::Unquoted(vals)) => vals.to_vec(),
             Value::Vec(v) => v.iter().cloned().collect::<Vec<Value>>(),
-            Value::String(s) => s.chars().map(|c| Value::Char(c)).collect::<Vec<Value>>(),
+            Value::String(s) => s.chars().map(Value::Char).collect::<Vec<Value>>(),
             _ => return not_coll,
         },
 
@@ -642,13 +633,7 @@ pub fn eval_filter(list: &[Value], env: &mut EnvPtr) -> EvalResult {
         return not_coll;
     };
 
-    let coll = if let Value::Symbol(s) = coll {
-        eval_symbol(s, env)?
-    } else if let Value::Form(Form::Unquoted(vals)) = coll {
-        eval_form(vals, env)?
-    } else {
-        coll.clone()
-    };
+    let coll = eval_value(coll, env)?;
 
     let fun = match fun {
         Value::Fun(_, _) | Value::Symbol(_) => fun.clone(),

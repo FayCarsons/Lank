@@ -31,7 +31,6 @@ impl FromPest for Value {
                     .into_inner()
                     .map(Self::from_pest)
                     .collect::<IterResult>()?;
-                let tokens = tokens;
 
                 match rule {
                     Rule::Vec => Value::from(VecDeque::from(tokens)),
@@ -48,7 +47,7 @@ impl FromPest for Value {
                 let vals = pair.into_inner().map(Self::from_pest).collect::<IterResult>()?;
                 vals.chunks_exact(2).try_for_each(|chunk| {
                     if chunk.len() != 2 {
-                        return Err(LankError::SyntaxError)
+                        Err(LankError::SyntaxError)
                     } else {
                         map.insert(chunk[0].clone(), chunk[1].clone());
                         Ok(())
@@ -60,12 +59,12 @@ impl FromPest for Value {
             Rule::Primitive => Self::from_pest(pair.into_inner().next().unwrap())?,
             Rule::Bool => Value::from(matches!(pair.as_str(), "true")),
             Rule::String => {
-                let str = pair.as_str().replace("\"", "");
+                let str = pair.as_str().replace('\"', "");
                 Value::from(str.to_owned())
             }
             Rule::Symbol => Value::Symbol(Rc::from(pair.as_str().to_owned())),
             Rule::Char => {
-                let str = pair.as_str().replace("'", "");
+                let str = pair.as_str().replace('\'', "");
                 Value::Char(char::from(str.as_bytes()[0]))
             }
             Rule::Number => {
@@ -112,5 +111,5 @@ pub fn parse(program: &str) -> EvalResult {
         }
     }
 
-    Ok(Value::from_pest(parsed?.next().unwrap())?)
+    Value::from_pest(parsed?.next().unwrap())
 }

@@ -4,7 +4,7 @@ use super::{eval_value, fun::nil, Env, EnvPtr, EvalResult, Value};
 use std::rc::Rc;
 
 pub fn eval_ternary(list: &[Value], env: &mut EnvPtr) -> EvalResult {
-    let [cond, true_body, false_body] = &list[..] else {
+    let [cond, true_body, false_body] = list else {
         return Err(LankError::SyntaxError);
     };
 
@@ -18,7 +18,7 @@ pub fn eval_ternary(list: &[Value], env: &mut EnvPtr) -> EvalResult {
 }
 
 pub fn eval_when(list: &[Value], env: &mut EnvPtr) -> EvalResult {
-    let [cond, body] = &list[..] else {
+    let [cond, body] = list else {
         return Err(LankError::SyntaxError);
     };
 
@@ -63,7 +63,7 @@ pub fn eval_match(list: &[Value], env: &mut EnvPtr) -> EvalResult {
 }
 
 pub fn eval_if_let(list: &[Value], env: &mut EnvPtr) -> EvalResult {
-    let [binding, true_body, false_body] = &list[..] else {
+    let [binding, true_body, false_body] = list else {
         return Err(LankError::SyntaxError);
     };
 
@@ -75,7 +75,7 @@ pub fn eval_if_let(list: &[Value], env: &mut EnvPtr) -> EvalResult {
         return Err(LankError::SyntaxError);
     };
 
-    let val = eval_value(&val, env)?;
+    let val = eval_value(val, env)?;
 
     if nil(&val) {
         eval_value(false_body, env)
@@ -84,13 +84,13 @@ pub fn eval_if_let(list: &[Value], env: &mut EnvPtr) -> EvalResult {
             return Err(LankError::SyntaxError);
         };
         let mut temp_env = Env::new_extended(env.clone());
-        temp_env.borrow_mut().set(&name, val);
+        temp_env.borrow_mut().set(name, val);
         eval_value(true_body, &mut temp_env)
     }
 }
 
 pub fn eval_when_let(list: &[Value], env: &mut EnvPtr) -> EvalResult {
-    let [binding, body] = &list[..] else {
+    let [binding, body] = list else {
         return Err(LankError::SyntaxError);
     };
 
@@ -102,7 +102,7 @@ pub fn eval_when_let(list: &[Value], env: &mut EnvPtr) -> EvalResult {
         return Err(LankError::SyntaxError);
     };
 
-    let val = eval_value(&val, env)?;
+    let val = eval_value(val, env)?;
 
     if nil(&val) {
         Ok(Value::Void)
@@ -111,7 +111,7 @@ pub fn eval_when_let(list: &[Value], env: &mut EnvPtr) -> EvalResult {
             return Err(LankError::SyntaxError);
         };
         let mut temp_env = Env::new_extended(env.clone());
-        temp_env.borrow_mut().set(&name, val);
+        temp_env.borrow_mut().set(name, val);
         eval_value(body, &mut temp_env)
     }
 }

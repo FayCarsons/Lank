@@ -37,8 +37,8 @@ impl Deref for Form {
 
     fn deref(&self) -> &Self::Target {
         match self {
-            Form::Quoted(form) => &form,
-            Form::Unquoted(form) => &form
+            Form::Quoted(form) => form,
+            Form::Unquoted(form) => form
         }
     }
 }
@@ -76,7 +76,7 @@ impl Value {
             Self::Fun(_, _) => "Function",
             Self::BitSeq(_) => "Bit-seq",
             Self::Quoted(val) => val.as_ref().type_of(),
-            Self::Map(m) => "Map"
+            Self::Map(_) => "Map"
         }
     }
 }

@@ -58,7 +58,7 @@ impl Env {
                 .vars
                 .clone()
                 .into_iter()
-                .chain(other.vars.into_iter())
+                .chain(other.vars)
                 .collect(),
             parent: if let Some(p) = &self.parent {
                 Some(p.clone())

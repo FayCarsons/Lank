@@ -4,13 +4,37 @@ use crate::utils::error::{IterResult, LankError};
 
 use super::{eval_form, eval_value, EnvPtr, EvalResult, Value};
 
+pub fn make_map(list: &[Value], env: &mut EnvPtr) -> EvalResult {
+    let arg = eval_value(&list[0], env)?;
+
+    let Value::Vec(pairs) = arg else {
+        return Err(LankError::WrongType("Hashmap".to_owned()))
+    };
+
+    let pairs = pairs.iter().map(|vec| {
+        let Value::Vec(pair) = vec else {
+            return Err(LankError::WrongType("Hashmap".to_owned()))
+        };
+
+        let pair = Vec::from_iter(pair.iter().cloned());
+
+        let (Some(k), Some(v)) = (pair.get(0), pair.get(1)) else {
+            return Err(LankError::SyntaxError)
+        };
+        
+        Ok((k.clone(),v.clone()))
+    }).collect::<Result<HashMap<Value, Value>, LankError>>()?;
+
+    Ok(Value::from(pairs))
+}
+
 pub fn eval_get(list: &[Value], env: &mut EnvPtr) -> EvalResult {
     let [map, key] = &list
         .iter()
         .map(|v| eval_value(v, env))
         .collect::<IterResult>()?[..]
     else {
-        return Err(LankError::NumArguments("get".to_owned(), 2));
+        return Err(LankError::NumArguments("Get".to_owned(), 2));
     };
 
     let Value::Map(map) = map else {
@@ -47,7 +71,7 @@ pub fn eval_update(list: &[Value], env: &mut EnvPtr) -> EvalResult {
 
     let new_map = map
         .into_iter()
-        .chain([(key.clone(), expr_res)].into_iter())
+        .chain([(key.clone(), expr_res)])
         .collect::<HashMap<Value, Value>>();
     println!("new map: {new_map:?}");
     Ok(Value::from(new_map))

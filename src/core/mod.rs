@@ -24,7 +24,7 @@ use self::{
     utils::{
         error::{IterResult, LankError},
         value::Form,
-    }, r#macro::eval_replace, map::{eval_get, eval_update, eval_keys, eval_vals, eval_merge},
+    }, r#macro::eval_replace, map::{eval_get, eval_update, eval_keys, eval_vals, eval_merge, make_map},
 };
 
 pub fn eval(program: &str, env: &mut EnvPtr) -> EvalResult {
@@ -38,8 +38,6 @@ pub fn eval_value(obj: &Value, env: &mut EnvPtr) -> EvalResult {
     match obj {
         Value::Symbol(s) => eval_symbol(s, env),
         Value::Form(Form::Unquoted(vals)) => eval_form(vals, env),
-        //Value::Vec(tokens) => create_vec(tokens, env),
-        Value::Fun(params, body) => Ok(Value::Fun(params.to_owned(), body.to_owned())),
         x => Ok(x.clone()),
     }
 }
@@ -121,6 +119,7 @@ fn eval_form(list: &[Value], env: &mut EnvPtr) -> EvalResult {
                 "bytes" => eval_bytes(list, env),
 
                 // Maps 
+                "hashmap" => make_map(list, env),
                 "get" => eval_get(list, env),
                 "update" => eval_update(list, env),
                 "keys" => eval_keys(list, env),

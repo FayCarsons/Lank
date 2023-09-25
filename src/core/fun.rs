@@ -280,7 +280,7 @@ pub fn eval_char(list: &[Value], env: &mut EnvPtr) -> EvalResult {
             if s.len() == 1 {
                 Ok(Value::Char(
                     s.chars()
-                        .nth(0)
+                        .next()
                         .ok_or(LankError::WrongType("Char".to_owned()))?,
                 ))
             } else {

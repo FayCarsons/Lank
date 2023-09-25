@@ -72,7 +72,7 @@ pub fn eval_fn_def(list: &[Value]) -> EvalResult {
         Rc::from(
             vals.iter()
                 .map(|o| match o {
-                    Value::Symbol(s) => Ok((&*s).to_string()),
+                    Value::Symbol(s) => Ok(s.to_string()),
                     _ => Err(format!("Invalid function params")),
                 })
                 .collect::<Result<Vec<String>, String>>()?,
@@ -81,7 +81,7 @@ pub fn eval_fn_def(list: &[Value]) -> EvalResult {
         return Err(LankError::FunctionFormat);
     };
 
-    Ok(Value::Fun(Rc::from(params), Form::from(body)))
+    Ok(Value::Fun(params, Form::from(body)))
 }
 
 pub fn defn(list: &[Value], env: &mut EnvPtr) -> EvalResult {
