@@ -113,3 +113,14 @@ pub fn parse(program: &str) -> EvalResult {
 
     Value::from_pest(parsed?.next().unwrap())
 }
+
+#[test]
+fn parse_test() {
+    let program = "(+ 1 1)";
+    let res = parse(program).unwrap();
+    assert_eq!(res, Value::Form(Form::Unquoted(Rc::new(vec![
+        Value::Symbol(Rc::from("+".to_string())),
+        Value::Number(1.),
+        Value::Number(1.)
+    ]))))
+}

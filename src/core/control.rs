@@ -1,6 +1,6 @@
 use crate::utils::{
     error::{IterResult, LankError},
-    value::Form,
+    value::Form, env::{get_env, set_env},
 };
 
 use super::{eval_form, eval_value, fun::*, Env, EnvPtr, EvalResult, Value};
@@ -19,7 +19,7 @@ pub fn eval_def(list: &[Value], env: &mut EnvPtr) -> EvalResult {
     };
 
     let value = eval_value(value, env)?;
-    env.borrow_mut().set(name, value);
+    set_env(&name.to_string(), &value, env)?;
     Ok(Value::Void)
 }
 
@@ -55,7 +55,7 @@ pub fn eval_do(list: &[Value], env: &mut EnvPtr) -> EvalResult {
 }
 
 pub fn eval_symbol(s: &str, env: &EnvPtr) -> EvalResult {
-    let val = env.borrow_mut().get(s);
+    let val = get_env(s, env)?;
     match val {
         Some(v) => Ok(v.clone()),
         None => Err(LankError::Other(format!("Undefined variable {s}"))),
@@ -95,14 +95,11 @@ pub fn defn(list: &[Value], env: &mut EnvPtr) -> EvalResult {
 }
 
 pub fn eval_fn_call(name: &str, list: &[Value], env: &mut EnvPtr) -> EvalResult {
-    let func = env
-        .borrow_mut()
-        .get(name)
-        .ok_or(LankError::UnknownFunction(name.to_string()))?;
+    let func = get_env(name, env)?.ok_or(LankError::UnknownFunction(name.to_owned()))?;
 
     match func {
         Value::Fun(params, body) => {
-            let mut temp_env = Env::new_extended(env.clone());
+            let mut temp_env = Env::extend(env.clone());
             let vals = list
                 .iter()
                 .map(|v| eval_value(v, env))
@@ -110,7 +107,7 @@ pub fn eval_fn_call(name: &str, list: &[Value], env: &mut EnvPtr) -> EvalResult 
             params
                 .iter()
                 .zip(vals.iter())
-                .for_each(|(param, val)| temp_env.borrow_mut().set(param, val.clone()));
+                .try_for_each(|(param, val)| set_env(param, val, &mut temp_env))?;
             eval_form(&body, &mut temp_env)
         }
         _ => Err(LankError::UnknownFunction(name.to_string())),
@@ -122,7 +119,7 @@ pub fn eval_let(list: &[Value], env: &mut EnvPtr) -> EvalResult {
         return Err(LankError::SyntaxError);
     };
 
-    let mut temp_env = Env::new_extended(env.clone());
+    let mut temp_env = Env::extend(env.clone());
 
     let Value::Vec(bindings) = binding_form else {
         return Err(LankError::SyntaxError);

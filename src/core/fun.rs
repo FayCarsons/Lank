@@ -6,7 +6,7 @@ use std::{
     rc::Rc,
 };
 
-use crate::utils::error::{IterResult, LankError};
+use crate::utils::{error::{IterResult, LankError}, env::set_env};
 
 use super::{eval, eval_form, eval_value, Env, EnvPtr, EvalResult, Value};
 
@@ -21,12 +21,12 @@ pub fn eval_lambda_call(
         .map(|v| eval_value(v, env))
         .collect::<IterResult>()?;
 
-    let mut temp_env = Env::new_extended(env.clone());
+    let mut temp_env = Env::extend(env.clone());
 
     params
         .iter()
         .zip(args.iter())
-        .for_each(|(param, val)| temp_env.borrow_mut().set(param, val.clone()));
+        .try_for_each(|(param, val)| set_env(param, val, &mut temp_env))?;
     eval_form(body, &mut temp_env)
 }
 
@@ -291,5 +291,3 @@ pub fn eval_char(list: &[Value], env: &mut EnvPtr) -> EvalResult {
         _ => Err(LankError::WrongType("Char".to_owned())),
     }
 }
-
-

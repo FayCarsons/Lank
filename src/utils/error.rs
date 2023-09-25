@@ -1,6 +1,8 @@
+use crate::core::Env;
+
 use super::value::Value;
 use core::fmt::Debug;
-use std::hash::Hash;
+use std::{hash::Hash, sync::{PoisonError, RwLockReadGuard}, convert::Infallible};
 
 #[derive(Debug, Clone)]
 pub enum LankError {
@@ -34,6 +36,12 @@ where
 impl From<std::io::Error> for LankError {
     fn from(error: std::io::Error) -> Self {
         LankError::ReadlineError(error.to_string())
+    }
+}
+
+impl<'a> From<PoisonError<RwLockReadGuard<'a, Env>>> for LankError {
+    fn from(value: PoisonError<RwLockReadGuard<'a, Env>>) -> Self {
+        LankError::Other(value.to_string())
     }
 }
 
