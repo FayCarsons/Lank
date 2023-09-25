@@ -87,6 +87,7 @@ fn eval_form(list: &[Value], env: &mut EnvPtr) -> EvalResult {
                 "symbol?" => eval_is_symbol(list, env),
                 "bool?" => eval_is_bool(list, env),
                 "fn?" => eval_is_fun(list, env),
+                "map?" => eval_is_map(list, env),
 
                 // type coercion
                 "char" => eval_char(list, env),
@@ -155,13 +156,9 @@ fn eval_form(list: &[Value], env: &mut EnvPtr) -> EvalResult {
         _ => {
             let xs = list
                 .iter()
+                .filter(|x| **x != Value::Void)
                 .map(|v| eval_value(v, env))
                 .collect::<IterResult>()?;
-            /* WAS THIS NECESSARY? ~INVESTIGATE~
-            let xs = xs
-                .into_iter()
-                .filter(|x| *x != Value::Void)
-                .collect(); */
             Ok(Value::from(xs))
         }
     }

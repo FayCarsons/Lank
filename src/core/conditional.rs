@@ -1,6 +1,6 @@
 use crate::utils::{error::LankError, value::Form, env::set_env};
 
-use super::{eval_value, fun::nil, Env, EnvPtr, EvalResult, Value};
+use super::{eval_value, fun::nil, Env, EnvPtr, EvalResult, Value, control::eval_symbol};
 use std::rc::Rc;
 
 pub fn eval_ternary(list: &[Value], env: &mut EnvPtr) -> EvalResult {
@@ -160,7 +160,7 @@ pub fn eval_is_char(list: &[Value], env: &mut EnvPtr) -> EvalResult {
 pub fn eval_is_num(list: &[Value], env: &mut EnvPtr) -> EvalResult {
     let arg = list
         .first()
-        .ok_or(LankError::NumArguments("Char?".to_owned(), 1))?;
+        .ok_or(LankError::NumArguments("Num?".to_owned(), 1))?;
     let arg = eval_value(arg, env)?;
 
     if let Value::Number(_) = arg {
@@ -173,7 +173,7 @@ pub fn eval_is_num(list: &[Value], env: &mut EnvPtr) -> EvalResult {
 pub fn eval_is_coll(list: &[Value], env: &mut EnvPtr) -> EvalResult {
     let arg = list
         .first()
-        .ok_or(LankError::NumArguments("Char?".to_owned(), 1))?;
+        .ok_or(LankError::NumArguments("Coll?".to_owned(), 1))?;
     let arg = eval_value(arg, env)?;
 
     match arg {
@@ -186,7 +186,7 @@ pub fn eval_is_coll(list: &[Value], env: &mut EnvPtr) -> EvalResult {
 pub fn eval_is_vec(list: &[Value], env: &mut EnvPtr) -> EvalResult {
     let arg = list
         .first()
-        .ok_or(LankError::NumArguments("Char?".to_owned(), 1))?;
+        .ok_or(LankError::NumArguments("Vec?".to_owned(), 1))?;
     let arg = eval_value(arg, env)?;
 
     if let Value::Vec(_) = arg {
@@ -199,7 +199,7 @@ pub fn eval_is_vec(list: &[Value], env: &mut EnvPtr) -> EvalResult {
 pub fn eval_is_list(list: &[Value], env: &mut EnvPtr) -> EvalResult {
     let arg = list
         .first()
-        .ok_or(LankError::NumArguments("Char?".to_owned(), 1))?;
+        .ok_or(LankError::NumArguments("List?".to_owned(), 1))?;
     let arg = eval_value(arg, env)?;
 
     if let Value::Form(_) = arg {
@@ -212,7 +212,7 @@ pub fn eval_is_list(list: &[Value], env: &mut EnvPtr) -> EvalResult {
 pub fn eval_is_string(list: &[Value], env: &mut EnvPtr) -> EvalResult {
     let arg = list
         .first()
-        .ok_or(LankError::NumArguments("Char?".to_owned(), 1))?;
+        .ok_or(LankError::NumArguments("String?".to_owned(), 1))?;
     let arg = eval_value(arg, env)?;
 
     if let Value::String(_) = arg {
@@ -225,7 +225,7 @@ pub fn eval_is_string(list: &[Value], env: &mut EnvPtr) -> EvalResult {
 pub fn eval_is_symbol(list: &[Value], env: &mut EnvPtr) -> EvalResult {
     let arg = list
         .first()
-        .ok_or(LankError::NumArguments("Char?".to_owned(), 1))?;
+        .ok_or(LankError::NumArguments("Symbol?".to_owned(), 1))?;
     let arg = eval_value(arg, env)?;
 
     if let Value::Symbol(_) = arg {
@@ -238,7 +238,7 @@ pub fn eval_is_symbol(list: &[Value], env: &mut EnvPtr) -> EvalResult {
 pub fn eval_is_bool(list: &[Value], env: &mut EnvPtr) -> EvalResult {
     let arg = list
         .first()
-        .ok_or(LankError::NumArguments("Char?".to_owned(), 1))?;
+        .ok_or(LankError::NumArguments("Bool?".to_owned(), 1))?;
     let arg = eval_value(arg, env)?;
 
     if let Value::Bool(_) = arg {
@@ -252,10 +252,26 @@ pub fn eval_is_bool(list: &[Value], env: &mut EnvPtr) -> EvalResult {
 pub fn eval_is_fun(list: &[Value], env: &mut EnvPtr) -> EvalResult {
     let arg = list
         .first()
-        .ok_or(LankError::NumArguments("Char?".to_owned(), 1))?;
+        .ok_or(LankError::NumArguments("Fn?".to_owned(), 1))?;
     let arg = eval_value(arg, env)?;
 
     if let Value::Fun(_, _) = arg {
+        Ok(Value::from(true))
+    } else {
+        Ok(Value::from(false))
+    }
+}
+
+pub fn eval_is_map(list: &[Value], env: &mut EnvPtr) -> EvalResult {
+    let arg = list.first().ok_or(LankError::NumArguments("Map?".to_owned(), 1))?;
+    
+    let arg = if let Value::Symbol(maybe) = arg {
+        eval_symbol(maybe, env)?
+    } else {
+        arg.clone()
+    };
+
+    if let Value::Map(_) = arg {
         Ok(Value::from(true))
     } else {
         Ok(Value::from(false))

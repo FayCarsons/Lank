@@ -71,11 +71,11 @@ impl FromPest for Value {
                 if let Ok(num) = str::parse::<f64>(pair.as_str()).map_err(|err| err.to_string()) {
                     Value::Number(num)
                 } else if let Ok(num) =
-                    u16::from_str_radix(&pair.as_str()[..16], 2).map_err(|err| err.to_string())
+                    u16::from_str_radix(&pair.as_str().replace("0b", ""), 2).map_err(|err| err.to_string())
                 {
                     Value::BitSeq(num)
                 } else if let Ok(num) =
-                    u64::from_str_radix(&pair.as_str()[2..], 16).map_err(|err| err.to_string())
+                    u64::from_str_radix(&pair.as_str().replace("0x", ""), 16).map_err(|err| err.to_string())
                 {
                     Value::Number(num as f64)
                 } else {

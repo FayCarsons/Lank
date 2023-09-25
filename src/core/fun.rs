@@ -27,6 +27,7 @@ pub fn eval_lambda_call(
         .iter()
         .zip(args.iter())
         .try_for_each(|(param, val)| set_env(param, val, &mut temp_env))?;
+    
     eval_form(body, &mut temp_env)
 }
 
@@ -116,6 +117,8 @@ pub fn eval_unary(list: &[Value], env: &mut EnvPtr) -> EvalResult {
         "abs" => |o: Value| -> EvalResult {
             if let Value::Number(num) = o {
                 Ok(Value::Number(num.abs()))
+            } else if let Value::BitSeq(_) = o {
+                Ok(o)
             } else {
                 Err(LankError::NotANumber)
             }
@@ -130,6 +133,8 @@ pub fn eval_unary(list: &[Value], env: &mut EnvPtr) -> EvalResult {
         "bit-flip" => |o: Value| -> EvalResult {
             if let Value::Number(num) = o {
                 Ok(Value::Number((!(num as i64)) as f64))
+            } else if let Value::BitSeq(num) = o {
+                Ok(Value::BitSeq(!num))
             } else {
                 Err(LankError::NotANumber)
             }
@@ -143,7 +148,8 @@ pub fn eval_unary(list: &[Value], env: &mut EnvPtr) -> EvalResult {
     operation(arg)
 }
 
-// TODO figure out float nil, maybe epsilon ?
+// TODO figure out float nil
+// in the meantime this works
 pub fn nil(x: &Value) -> bool {
     match x {
         Value::Void => true,
@@ -172,10 +178,7 @@ pub fn eval_bool(list: &[Value], env: &mut EnvPtr) -> EvalResult {
         return Err(LankError::NumArguments(operator.to_string(), 2));
     };
 
-    let (lhs, rhs) = match (lhs, rhs) {
-        (Value::Bool(a), Value::Bool(b)) => (a, b),
-        _ => return Err(LankError::WrongType(operator.to_string())),
-    };
+    let [lhs, rhs] = [nil(lhs), nil(rhs)];
 
     match &**operator {
         "xor" => Ok(Value::Bool(lhs ^ rhs)),

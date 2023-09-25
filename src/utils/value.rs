@@ -20,11 +20,17 @@ pub enum Value {
     Fun(Rc<Vec<String>>, Form),
 }
 
+unsafe impl Send for Value {}
+unsafe impl Sync for Value {}
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum Form {
     Quoted(Seq),
     Unquoted(Seq),
 }
+
+unsafe impl Send for Form {}
+unsafe impl Sync for Form {}
 
 impl From<&[Value]> for Form {
     fn from(value: &[Value]) -> Self {
