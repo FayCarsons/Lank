@@ -1,8 +1,6 @@
 #![allow(non_upper_case_globals)]
 use rand::{thread_rng, Rng};
 use std::{
-    collections::VecDeque,
-    convert,
     fs::File,
     io::{Read, Write},
     rc::Rc,
@@ -293,3 +291,5 @@ pub fn eval_char(list: &[Value], env: &mut EnvPtr) -> EvalResult {
         _ => Err(LankError::WrongType("Char".to_owned())),
     }
 }
+
+

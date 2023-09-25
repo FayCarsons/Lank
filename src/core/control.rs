@@ -63,7 +63,12 @@ pub fn eval_symbol(s: &str, env: &EnvPtr) -> EvalResult {
 }
 
 pub fn eval_fn_def(list: &[Value]) -> EvalResult {
-    let params = if let Value::Form(Form::Unquoted(vals)) = &list[0] {
+    let [params, body @ ..] = list else {
+        return Err(LankError::FunctionFormat)
+    };
+
+
+    let params = if let Value::Vec(vals) = params {
         Rc::from(
             vals.iter()
                 .map(|o| match o {
@@ -76,25 +81,17 @@ pub fn eval_fn_def(list: &[Value]) -> EvalResult {
         return Err(LankError::FunctionFormat);
     };
 
-    let body = match &list[1] {
-        Value::Form(Form::Unquoted(vals)) => vals.clone(),
-        _ => return Err(LankError::FunctionFormat),
-    };
-
-    Ok(Value::Fun(Rc::from(params), body))
+    Ok(Value::Fun(Rc::from(params), Form::from(body)))
 }
 
 pub fn defn(list: &[Value], env: &mut EnvPtr) -> EvalResult {
-    let (name, fun) = list
-        .split_first()
-        .ok_or(LankError::NumArguments("Defn".to_owned(), 2))?;
-
-    let fun = match eval_fn_def(fun) {
-        Ok(f) => f,
-        Err(e) => return Err(e),
+    let [name, fun @ ..] = list else {
+        return Err(LankError::FunctionFormat)
     };
 
-    eval_def([name.clone(), fun].as_ref(), env)
+    let fun = eval_fn_def(fun)?;
+
+    eval_def(&[name.clone(), fun], env)
 }
 
 pub fn eval_fn_call(name: &str, list: &[Value], env: &mut EnvPtr) -> EvalResult {

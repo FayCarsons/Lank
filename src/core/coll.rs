@@ -141,6 +141,31 @@ pub fn rand_nth(list: &[Value], env: &mut EnvPtr) -> EvalResult {
     Ok(elem.clone())
 }
 
+pub fn eval_shuffle(list: &[Value], env: &mut EnvPtr) -> EvalResult {
+    let arg = eval_value(&list[0], env)?;
+    let mut rng = thread_rng();
+    let coll = match arg {
+        Value::Vec(vals) => {
+            let mut shuffled = Vec::from_iter(vals.iter().cloned());
+            shuffled.shuffle(&mut rng);
+            Value::from(VecDeque::from(shuffled))
+        }
+        Value::Form(Form::Unquoted(vals)) => {
+            let mut shuffled = vals.iter().cloned().collect::<Vec<Value>>();
+            shuffled.shuffle(&mut rng);
+            Value::from(shuffled)
+        }
+        Value::String(s) => {
+            let mut shuffled = s.chars().collect::<Vec<char>>();
+            shuffled.shuffle(&mut rng);
+            Value::from(shuffled.iter().collect::<String>())
+        }
+        _ => return Err(LankError::WrongType("Shuffle".to_owned()))
+    };
+
+    Ok(coll)
+}
+
 pub fn eval_first(list: &[Value], env: &mut EnvPtr) -> EvalResult {
     let head = &list[0];
     let coll = eval_value(head, env)?;
@@ -667,6 +692,45 @@ fn try_filter_coll(fun: Value, coll: Value, env: &mut EnvPtr) -> EvalResult {
         _ => Err(LankError::WrongType("Filter".to_owned())),
     }
 }
+
+pub fn eval_take(list: &[Value], env: &mut EnvPtr) -> EvalResult {
+    let [num, coll] = &list[..2].iter().map(|v| eval_value(v, env)).collect::<IterResult>()?[..] else {
+        return Err(LankError::NumArguments("take".to_owned(), 2))
+    };
+
+    let Value::Number(num) = num else {
+        return Err(LankError::WrongType("Take".to_owned()))
+    };
+
+    let coll = match coll {
+        Value::Vec(vals) => Value::from(vals.iter().cloned().take(*num as usize).collect::<VecDeque<Value>>()),
+        Value::Form(Form::Unquoted(vals)) => Value::from(vals.iter().cloned().take(*num as usize).collect::<Vec<Value>>()),
+        Value::String(s) => Value::from(s.chars().take(*num as usize).collect::<String>()),
+        _ => return Err(LankError::WrongType("Take".to_owned()))
+    };
+
+    Ok(coll)
+}
+
+pub fn eval_drop(list: &[Value], env: &mut EnvPtr) -> EvalResult {
+    let [num, coll] = &list[..2].iter().map(|v| eval_value(v, env)).collect::<IterResult>()?[..] else {
+        return Err(LankError::NumArguments("take".to_owned(), 2))
+    };
+
+    let Value::Number(num) = num else {
+        return Err(LankError::WrongType("Take".to_owned()))
+    };
+
+    let coll = match coll {
+        Value::Vec(vals) => Value::from(vals.iter().cloned().skip(*num as usize).collect::<VecDeque<Value>>()),
+        Value::Form(Form::Unquoted(vals)) => Value::from(vals.iter().cloned().skip(*num as usize).collect::<Vec<Value>>()),
+        Value::String(s) => Value::from(s.chars().skip(*num as usize).collect::<String>()),
+        _ => return Err(LankError::WrongType("Take".to_owned()))
+    };
+
+    Ok(coll)
+}
+
 // STRINGS
 
 pub fn eval_concat(list: &[Value], env: &mut EnvPtr) -> EvalResult {

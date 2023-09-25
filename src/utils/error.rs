@@ -33,7 +33,7 @@ where
 
 impl From<std::io::Error> for LankError {
     fn from(error: std::io::Error) -> Self {
-        LankError::ParseError(error.to_string())
+        LankError::ReadlineError(error.to_string())
     }
 }
 

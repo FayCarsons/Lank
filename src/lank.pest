@@ -7,21 +7,22 @@ COMMENT = _{ SingleLineComment | MultilineComment }
 SingleLineComment = _{ "//" ~ (!NEWLINE ~ ANY)* ~ (NEWLINE | EOI) }
 MultilineComment = _{ "/*" ~ (!"*/" ~ ANY)* ~ "*/" }
 
+QuotedPrimitive = @{ "'" ~ (Number | Vec | Char | String | Bool | Symbol)}
+
 Void = @{ "Void" | "void" }
 Char = { "\'" ~ ('a'..'z' | 'A'..'Z'){1} ~ "\'"}
 Number = @{ HexDigit | BinaryDigit | FloatLiteral}
     FloatLiteral = {"-"? ~ (ASCII_DIGIT)+ ~ "."? ~ ASCII_DIGIT*}
     BinaryDigit = {"0b" ~ ASCII_BIN_DIGIT{1, 16}}
     HexDigit = {"0x" ~ ASCII_HEX_DIGIT{2, 16}}
+Primitive = { Void | String | Char | Bool | Number | Symbol }
 
 Form = { QuotedForm | NonQuotedForm }
 QuotedForm = { "'" ~ NonQuotedForm }
 NonQuotedForm = { "(" ~ (Primitive | Vec | Map | Form)* ~ ")" }
 
-Vec = { "[" ~ ((Form | Primitive | Vec) ~ WHITESPACE*)* ~ "]" }
-Map = { "{" ~ ((Form | Primitive | Vec) ~ (Form | Primitive | Vec))* ~ "}"}
-
-Primitive = { Void | String | Char | Bool | Number | Symbol }
+Vec = { "[" ~ ((Form | Primitive | Vec | Map) ~ WHITESPACE*)* ~ "]" }
+Map = ${ "{" ~  WHITESPACE*  ~ ((Primitive | Form | Vec) ~ WHITESPACE+ ~ (Primitive | Form | Vec | Map) ~ WHITESPACE*)* ~ "}"}
 
 String = { "\"" ~ StringInner ~ "\"" }
 StringInner = @{ (!("\"" | "\'") ~ ANY)* }
@@ -29,4 +30,4 @@ StringInner = @{ (!("\"" | "\'") ~ ANY)* }
 Bool = @{ "true" | "false"}
 
 Symbol = @{ (!SymbolForbiddenChar ~ ANY)+ }
-SymbolForbiddenChar = { "\"" | ";" | "(" | ")" | "[" | "]" | "`" | "'" | WHITESPACE }
+SymbolForbiddenChar = { "\"" | ";" | "(" | ")" | "[" | "]" | "{" | "}" | "`" | "'" | WHITESPACE }

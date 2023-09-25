@@ -1,9 +1,9 @@
 use super::{
-    error::{EvalResult, LankError},
+    error::{EvalResult, LankError, IterResult},
     value::{Form, Value},
 };
 
-use std::{collections::VecDeque, rc::Rc, sync::OnceLock};
+use std::{collections::{VecDeque, HashMap}, rc::Rc, sync::OnceLock};
 
 pub struct Config {
     print_tokens: bool,
@@ -30,34 +30,43 @@ impl FromPest for Value {
                 let tokens = pair
                     .into_inner()
                     .map(Self::from_pest)
-                    .collect::<Vec<EvalResult>>();
-                for token in tokens.iter() {
-                    if token.is_err() {
-                        return token.to_owned();
-                    }
-                }
-                let tokens = tokens.iter().map(|v| v.clone().unwrap());
+                    .collect::<IterResult>()?;
+                let tokens = tokens;
 
                 match rule {
-                    Rule::Vec => Value::from(tokens.collect::<VecDeque<Value>>()),
-                    Rule::NonQuotedForm => Value::from(tokens.collect::<Vec<Value>>()),
+                    Rule::Vec => Value::from(VecDeque::from(tokens)),
+                    Rule::NonQuotedForm => Value::from(tokens),
                     Rule::QuotedForm => {
-                        Value::Form(Form::Quoted(Rc::new(tokens.collect::<Vec<Value>>())))
+                        println!("received quoted form!");
+                        Value::Form(Form::Quoted(Rc::new(tokens)))
                     }
                     _ => unreachable!(),
                 }
             }
-            Rule::Map => Value::from("This is a hashmap"),
+            Rule::Map => {
+                let mut map = HashMap::new();
+                let vals = pair.into_inner().map(Self::from_pest).collect::<IterResult>()?;
+                vals.chunks_exact(2).try_for_each(|chunk| {
+                    if chunk.len() != 2 {
+                        return Err(LankError::SyntaxError)
+                    } else {
+                        map.insert(chunk[0].clone(), chunk[1].clone());
+                        Ok(())
+                    }
+                })?;
+                Value::from(map)
+            },
+            Rule::QuotedPrimitive => Value::Quoted(Box::new(Self::from_pest(pair.into_inner().next().unwrap())?)),
             Rule::Primitive => Self::from_pest(pair.into_inner().next().unwrap())?,
             Rule::Bool => Value::from(matches!(pair.as_str(), "true")),
             Rule::String => {
-                let str = pair.as_str();
-                Value::from(str[1..str.len() - 1].to_owned())
+                let str = pair.as_str().replace("\"", "");
+                Value::from(str.to_owned())
             }
             Rule::Symbol => Value::Symbol(Rc::from(pair.as_str().to_owned())),
             Rule::Char => {
-                let str = pair.as_str();
-                Value::Char(char::from(str[1..str.len() - 1].as_bytes()[0]))
+                let str = pair.as_str().replace("'", "");
+                Value::Char(char::from(str.as_bytes()[0]))
             }
             Rule::Number => {
                 if let Ok(num) = str::parse::<f64>(pair.as_str()).map_err(|err| err.to_string()) {

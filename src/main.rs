@@ -17,14 +17,14 @@ fn main() -> std::io::Result<()> {
     }
 
     println!("Lank Version 0.0.1");
-    println!("Press CTRL + c to Exit");
+    println!("Enter 'exit' to exit");
 
     let reader = Interface::new("Lank").unwrap();
 
     let history_path = Path::new("../history.txt");
 
-    let history_arg = env::args().next().unwrap_or("".to_string());
-    if history_path.exists() && !matches!(history_arg.as_str(), "-c" | "--clear") {
+    let env_args = env::args().collect::<Vec<String>>();
+    if history_path.exists() && ! env_args.contains(&"-c".to_string()) | env_args.contains(&"--clear-history".to_string()) {
         reader.load_history(history_path).unwrap();
     } else {
         File::create("../history.txt")?;
@@ -45,18 +45,8 @@ fn main() -> std::io::Result<()> {
             let val = eval(input.as_ref(), &mut env);
             print!("Lank> ");
             match val {
-                Err(e) => println!("{e} "),
-                Ok(Value::Void) => {}
-                Ok(Value::Number(n)) => println!("{n}"),
-                Ok(Value::Bool(b)) => println!("{b}"),
-                Ok(Value::Symbol(s)) => println!("{s}"),
-                Ok(Value::Fun(params, body)) => {
-                    print!("Fun (");
-                    params.iter().for_each(|p| println!("{p} "));
-                    print!(") ");
-                    body.iter().for_each(|exp| println!("({exp}) "));
-                }
-                Ok(x) => println!("{x}"),
+                Err(e) => println!("{e}"),
+                Ok(v) => println!("{v}")
             }
         }
         reader.add_history(input);

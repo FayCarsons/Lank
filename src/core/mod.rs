@@ -12,7 +12,8 @@ mod coll;
 mod conditional;
 mod control;
 mod fun;
-mod loops;
+mod r#macro;
+mod map;
 
 use self::{
     bit::*,
@@ -20,11 +21,10 @@ use self::{
     conditional::*,
     control::*,
     fun::*,
-    loops::*,
     utils::{
         error::{IterResult, LankError},
         value::Form,
-    },
+    }, r#macro::eval_replace, map::{eval_get, eval_update, eval_keys, eval_vals, eval_merge},
 };
 
 pub fn eval(program: &str, env: &mut EnvPtr) -> EvalResult {
@@ -97,6 +97,7 @@ fn eval_form(list: &[Value], env: &mut EnvPtr) -> EvalResult {
                 // collections (this includes strings)
                 "nth" => eval_nth(list, env),
                 "rand-nth" => rand_nth(list, env),
+                "shuffle" => eval_shuffle(list, env),
                 "list" | "vec" | "str" | "bit-seq" => make_coll(s, list, env),
                 "range" => eval_range(list, env),
                 "count" => eval_count(list, env),
@@ -106,6 +107,8 @@ fn eval_form(list: &[Value], env: &mut EnvPtr) -> EvalResult {
                 "rest" => eval_rest(list, env),
                 "prepend" => eval_prepend(list, env),
                 "append" => eval_append(list, env),
+                "take" => eval_take(list, env),
+                "drop" => eval_drop(list, env),
                 "reverse" => eval_reverse(list, env),
                 "map" => eval_map(list, env),
                 "map-indexed" => eval_map_indexed(list, env),
@@ -117,12 +120,22 @@ fn eval_form(list: &[Value], env: &mut EnvPtr) -> EvalResult {
                 "format" => eval_format(list, env),
                 "bytes" => eval_bytes(list, env),
 
+                // Maps 
+                "get" => eval_get(list, env),
+                "update" => eval_update(list, env),
+                "keys" => eval_keys(list, env),
+                "vals" => eval_vals(list, env),
+                "merge" => eval_merge(list, env), 
+
                 // Bit-seq
                 "bit-set" => set_bit(list, env),
                 "bit-get" => get_bit(list, env),
                 "bit-toggle" => toggle_bit(list, env),
                 "bit-clear" => clear_bit(list, env),
                 "count-ones" => count_set(list, env),
+
+                // Macros 
+                "replace" => eval_replace(list, env),
 
                 _ => eval_fn_call(s, list, env),
             }

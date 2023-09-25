@@ -1,9 +1,10 @@
-use std::{collections::VecDeque, fmt, rc::Rc};
+use std::{collections::{VecDeque, HashMap}, fmt, rc::Rc, ops::Deref, hash::Hash};
 
 pub type Seq = Rc<Vec<Value>>;
 pub type Vector = Rc<VecDeque<Value>>;
+pub type Map = Box<HashMap<Value, Value>>;
 
-#[derive(Debug, Clone, PartialEq, PartialOrd)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Value {
     Void,
     Form(Form),
@@ -14,13 +15,32 @@ pub enum Value {
     Bool(bool),
     Vec(Vector),
     BitSeq(u16),
-    Fun(Rc<Vec<String>>, Rc<Vec<Value>>),
+    Quoted(Box<Value>),
+    Map(Map),
+    Fun(Rc<Vec<String>>, Form),
 }
 
-#[derive(Debug, Clone, PartialEq, PartialOrd)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Form {
     Quoted(Seq),
     Unquoted(Seq),
+}
+
+impl From<&[Value]> for Form {
+    fn from(value: &[Value]) -> Self {
+        Form::Unquoted(Rc::new(value.to_vec()))
+    }
+}
+
+impl Deref for Form {
+    type Target = Seq;
+
+    fn deref(&self) -> &Self::Target {
+        match self {
+            Form::Quoted(form) => &form,
+            Form::Unquoted(form) => &form
+        }
+    }
 }
 
 impl std::fmt::Display for Form {
@@ -42,19 +62,21 @@ impl Value {
 
     pub fn type_of(&self) -> &str {
         match self {
-            Value::Void => "Void",
-            Value::Form(form) => match form {
+            Self::Void => "Void",
+            Self::Form(form) => match form {
                 Form::Quoted(_) => "Quoted form",
                 Form::Unquoted(_) => "Unquoted form",
             },
-            Value::Vec(_) => "Vector",
-            Value::Number(_) => "Number",
-            Value::String(_) => "String",
-            Value::Symbol(_) => "Symbol",
-            Value::Char(_) => "Char",
-            Value::Bool(_) => "Bool",
-            Value::Fun(_, _) => "Function",
-            Value::BitSeq(_) => "Bit-seq",
+            Self::Vec(_) => "Vector",
+            Self::Number(_) => "Number",
+            Self::String(_) => "String",
+            Self::Symbol(_) => "Symbol",
+            Self::Char(_) => "Char",
+            Self::Bool(_) => "Bool",
+            Self::Fun(_, _) => "Function",
+            Self::BitSeq(_) => "Bit-seq",
+            Self::Quoted(val) => val.as_ref().type_of(),
+            Self::Map(m) => "Map"
         }
     }
 }
@@ -112,6 +134,12 @@ impl From<Rc<VecDeque<Value>>> for Value {
     }
 }
 
+impl From<HashMap<Value, Value>> for Value {
+    fn from(value: HashMap<Value, Value>) -> Self {
+        Value::Map(Box::new(value))
+    }
+}
+
 impl From<f64> for Value {
     fn from(value: f64) -> Self {
         Value::Number(value)
@@ -139,6 +167,12 @@ impl From<usize> for Value {
 impl From<u8> for Value {
     fn from(value: u8) -> Self {
         Value::Number(value as f64)
+    }
+}
+
+impl From<i16> for Value {
+    fn from(value: i16) -> Self {
+        Value::BitSeq(value.unsigned_abs())
     }
 }
 
@@ -179,9 +213,35 @@ impl From<Value> for String {
             Value::Void => "".to_string(),
             Value::Vec(_) => format!("{}", value.clone()),
             Value::BitSeq(b) => format!("{:#018b}", b),
+            Value::Quoted(val) => String::from(*val),
+            Value::Map(map) => format!("{map:#?}")
         }
     }
 }
+
+impl Hash for Value {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        match self {
+            Self::BitSeq(i) => i.hash(state),
+            Self::Bool(b) => b.hash(state),
+            Self::Char(c) => c.hash(state),
+            Self::Form(Form::Unquoted(form)) | Self::Form(Form::Quoted(form)) => form.hash(state),
+            Self::Fun(params, body) => {
+                params.hash(state);
+                body.hash(state);
+            }
+            Self::Quoted(x) => x.hash(state),
+            Self::Number(n) => n.to_bits().hash(state),
+            Self::String(s) | Self::Symbol(s) => s.hash(state),
+            Self::Vec(v) => v.hash(state),
+            Self::Void => 0.hash(state),
+            Self::Map(map) => {
+                map.values().zip(map.keys()).collect::<Vec<(&Value, &Value)>>().hash(state)}
+        }
+    }
+}
+
+impl Eq for Value {}
 
 impl fmt::Display for Value {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -212,6 +272,8 @@ impl fmt::Display for Value {
                 write!(f, "]")
             }
             Self::BitSeq(b) => write!(f, "{:#018b}", b),
+            Self::Quoted(val) => write!(f, "{}", *val),
+            Self::Map(map) => write!(f, "{map:#?}")
         }
     }
 }
