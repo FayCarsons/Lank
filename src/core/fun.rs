@@ -218,6 +218,7 @@ pub fn gen_rand(list: &[Value], env: &mut EnvPtr) -> EvalResult {
             let Value::Number(num) = end else {
                 return Err(LankError::NumArguments("Rand".to_owned(), 1));
             };
+            if *num < 1. {return Ok(Value::Number(0.))}
             Ok(Value::Number(rng.gen_range(0..*num as usize) as f64))
         }
         [start, end] => {

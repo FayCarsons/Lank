@@ -4,7 +4,6 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-anyhow = "1.0.75"
 linefeed = "0.6.0"
 pest = "2.7.3"
 pest_derive = "2.7.3"

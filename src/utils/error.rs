@@ -2,7 +2,7 @@ use crate::core::Env;
 
 use super::value::Value;
 use core::fmt::Debug;
-use std::{hash::Hash, sync::{PoisonError, RwLockReadGuard}, convert::Infallible};
+use std::{hash::Hash, sync::{PoisonError, RwLockReadGuard}};
 
 #[derive(Debug, Clone)]
 pub enum LankError {

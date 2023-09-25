@@ -1,7 +1,5 @@
-use crate::core::EvalResult;
-
 use super::{value::Value, error::LankError};
-use std::{cell::RefCell, collections::HashMap, rc::Rc, sync::RwLock};
+use std::{collections::HashMap, rc::Rc, sync::RwLock};
 
 pub type EnvPtr = Rc<RwLock<Env>>;
 
@@ -77,7 +75,7 @@ impl Env {
     }
 }
 
-pub fn set_env(param: &String, val: &Value, env: &mut EnvPtr) -> Result<(), LankError> {
+pub fn set_env(param: &str, val: &Value, env: &EnvPtr) -> Result<(), LankError> {
     let mut lock = env.write().map_err(|_| LankError::Other("RWLOCK POINSED ON WRITE".to_owned()))?;
     lock.set(param, val.clone());
     Ok(())

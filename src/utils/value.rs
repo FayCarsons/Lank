@@ -279,7 +279,14 @@ impl fmt::Display for Value {
             }
             Self::BitSeq(b) => write!(f, "{:#018b}", b),
             Self::Quoted(val) => write!(f, "{}", *val),
-            Self::Map(map) => write!(f, "{map:#?}")
+            Self::Map(map) => {
+                write!(f, "{{")?;
+                for (idx, (k,v)) in map.iter().enumerate() {
+                    if idx > 0 {write!(f,"\n ")?;}
+                    write!(f, "{k} {v}")?;
+                }
+                write!(f, "}}")
+            }
         }
     }
 }
