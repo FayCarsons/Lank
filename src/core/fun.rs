@@ -6,30 +6,9 @@ use std::{
     rc::Rc,
 };
 
-use crate::utils::{error::{IterResult, LankError}, env::set_env};
+use crate::utils::error::{IterResult, LankError};
 
-use super::{eval, eval_form, eval_value, Env, EnvPtr, EvalResult, Value};
-
-pub fn eval_lambda_call(
-    params: &Rc<Vec<String>>,
-    body: &Rc<Vec<Value>>,
-    args: &[Value],
-    env: &mut EnvPtr,
-) -> EvalResult {
-    let args = args
-        .iter()
-        .map(|v| eval_value(v, env))
-        .collect::<IterResult>()?;
-
-    let mut temp_env = Env::extend(env.clone());
-
-    params
-        .iter()
-        .zip(args.iter())
-        .try_for_each(|(param, val)| set_env(param, val, &mut temp_env))?;
-    
-    eval_form(body, &mut temp_env)
-}
+use super::{eval, eval_value, Env, EnvPtr, EvalResult, Value};
 
 // Fix this!! could be handled much more elegantly
 pub fn eval_binary_op(list: &[Value], env: &mut EnvPtr) -> EvalResult {
@@ -150,13 +129,9 @@ pub fn eval_unary(list: &[Value], env: &mut EnvPtr) -> EvalResult {
 
 // TODO figure out float nil
 // in the meantime this works
+#[inline(always)]
 pub fn nil(x: &Value) -> bool {
-    match x {
-        Value::Void => true,
-        Value::Bool(b) if !b => true,
-        Value::Number(n) if *n == 0. => true,
-        _ => false,
-    }
+    *x == Value::Void || *x == Value::Bool(false) || *x == Value::Number(0.)
 }
 
 // IMPLEMENT ARBITRARY ARITIES
@@ -218,7 +193,9 @@ pub fn gen_rand(list: &[Value], env: &mut EnvPtr) -> EvalResult {
             let Value::Number(num) = end else {
                 return Err(LankError::NumArguments("Rand".to_owned(), 1));
             };
-            if *num < 1. {return Ok(Value::Number(0.))}
+            if *num < 1. {
+                return Ok(Value::Number(0.));
+            }
             Ok(Value::Number(rng.gen_range(0..*num as usize) as f64))
         }
         [start, end] => {

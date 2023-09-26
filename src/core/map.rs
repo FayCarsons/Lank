@@ -8,22 +8,25 @@ pub fn make_map(list: &[Value], env: &mut EnvPtr) -> EvalResult {
     let arg = eval_value(&list[0], env)?;
 
     let Value::Vec(pairs) = arg else {
-        return Err(LankError::WrongType("Hashmap".to_owned()))
+        return Err(LankError::WrongType("Hashmap".to_owned()));
     };
 
-    let pairs = pairs.iter().map(|vec| {
-        let Value::Vec(pair) = vec else {
-            return Err(LankError::WrongType("Hashmap".to_owned()))
-        };
+    let pairs = pairs
+        .iter()
+        .map(|vec| {
+            let Value::Vec(pair) = vec else {
+                return Err(LankError::WrongType("Hashmap".to_owned()));
+            };
 
-        let pair = Vec::from_iter(pair.iter().cloned());
+            let pair = Vec::from_iter(pair.iter().cloned());
 
-        let (Some(k), Some(v)) = (pair.get(0), pair.get(1)) else {
-            return Err(LankError::SyntaxError)
-        };
-        
-        Ok((k.clone(),v.clone()))
-    }).collect::<Result<HashMap<Value, Value>, LankError>>()?;
+            let (Some(k), Some(v)) = (pair.get(0), pair.get(1)) else {
+                return Err(LankError::SyntaxError);
+            };
+
+            Ok((k.clone(), v.clone()))
+        })
+        .collect::<Result<HashMap<Value, Value>, LankError>>()?;
 
     Ok(Value::from(pairs))
 }

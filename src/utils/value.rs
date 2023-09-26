@@ -1,4 +1,10 @@
-use std::{collections::{VecDeque, HashMap}, fmt, rc::Rc, ops::Deref, hash::Hash};
+use std::{
+    collections::{HashMap, VecDeque},
+    fmt,
+    hash::Hash,
+    ops::Deref,
+    rc::Rc,
+};
 
 pub type Seq = Rc<Vec<Value>>;
 pub type Vector = Rc<VecDeque<Value>>;
@@ -44,7 +50,7 @@ impl Deref for Form {
     fn deref(&self) -> &Self::Target {
         match self {
             Form::Quoted(form) => form,
-            Form::Unquoted(form) => form
+            Form::Unquoted(form) => form,
         }
     }
 }
@@ -82,8 +88,31 @@ impl Value {
             Self::Fun(_, _) => "Function",
             Self::BitSeq(_) => "Bit-seq",
             Self::Quoted(val) => val.as_ref().type_of(),
-            Self::Map(_) => "Map"
+            Self::Map(_) => "Map",
         }
+    }
+}
+
+impl PartialOrd for Value {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        match (self, other) {
+            (Self::Bool(a), Self::Bool(b)) => a.partial_cmp(b),
+            (Self::Number(a), Self::Number(b)) => a.to_bits().partial_cmp(&b.to_bits()),
+            (Self::Form(a), Self::Form(b)) => a.partial_cmp(b),
+            (Self::BitSeq(a), Self::BitSeq(b)) => a.partial_cmp(b),
+            (Self::Vec(a), Self::Vec(b)) => a.partial_cmp(b),
+            (Self::String(a), Self::String(b)) => a.partial_cmp(b),
+            (Self::Char(a), Self::Char(b)) => a.partial_cmp(b),
+            (_, Self::Void) => Some(std::cmp::Ordering::Greater),
+            (Self::Void, _) => Some(std::cmp::Ordering::Less),
+            _ => Some(std::cmp::Ordering::Equal)
+        }
+    }
+}
+
+impl Ord for Value {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.partial_cmp(other).unwrap()
     }
 }
 
@@ -220,7 +249,7 @@ impl From<Value> for String {
             Value::Vec(_) => format!("{}", value.clone()),
             Value::BitSeq(b) => format!("{:#018b}", b),
             Value::Quoted(val) => String::from(*val),
-            Value::Map(map) => format!("{map:#?}")
+            Value::Map(map) => format!("{map:#?}"),
         }
     }
 }
@@ -241,8 +270,11 @@ impl Hash for Value {
             Self::String(s) | Self::Symbol(s) => s.hash(state),
             Self::Vec(v) => v.hash(state),
             Self::Void => 0.hash(state),
-            Self::Map(map) => {
-                map.values().zip(map.keys()).collect::<Vec<(&Value, &Value)>>().hash(state)}
+            Self::Map(map) => map
+                .values()
+                .zip(map.keys())
+                .collect::<Vec<(&Value, &Value)>>()
+                .hash(state),
         }
     }
 }
@@ -281,8 +313,10 @@ impl fmt::Display for Value {
             Self::Quoted(val) => write!(f, "{}", *val),
             Self::Map(map) => {
                 write!(f, "{{")?;
-                for (idx, (k,v)) in map.iter().enumerate() {
-                    if idx > 0 {write!(f,"\n ")?;}
+                for (idx, (k, v)) in map.iter().enumerate() {
+                    if idx > 0 {
+                        write!(f, "\n ")?;
+                    }
                     write!(f, "{k} {v}")?;
                 }
                 write!(f, "}}")

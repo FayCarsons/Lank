@@ -2,11 +2,11 @@ use std::rc::Rc;
 
 use crate::utils::{error::LankError, value::Form};
 
-use super::{EnvPtr, Value, EvalResult};
+use super::{EnvPtr, EvalResult, Value};
 
 pub fn eval_replace(list: &[Value], _env: &mut EnvPtr) -> EvalResult {
     let [coll, symbol, replacement] = list else {
-        return Err(LankError::NumArguments("Replace".to_owned(), 3))
+        return Err(LankError::NumArguments("Replace".to_owned(), 3));
     };
 
     println!("coll: {coll} symbol: {symbol} replacement: {replacement}");
@@ -21,6 +21,6 @@ pub fn eval_replace(list: &[Value], _env: &mut EnvPtr) -> EvalResult {
                 Ok(Value::Void)
             }
         }
-        _ => Ok(Value::Void)
+        _ => Ok(Value::Void),
     }
 }

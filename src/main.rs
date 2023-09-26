@@ -1,35 +1,63 @@
 #![feature(iterator_try_reduce)]
 #![feature(try_trait_v2)]
 pub mod utils;
-use utils::{env::Env, value::Value};
+use utils::env::Env;
 
 mod core;
-use core::eval;
+use core::{eval};
 
 use linefeed::{Interface, ReadResult};
-use std::{env, fs::File, path::Path};
+use std::{env, fs::File, path::{Path}, io::Write, sync::OnceLock};
 
 const PROMPT: &str = "Lank> ";
+pub struct Config {
+    print_tokens: bool,
+    clear_history: bool,
+    history_path: Option<String>
+}
+
+static CONFIG: OnceLock<Config> = OnceLock::new();
 
 fn main() -> std::io::Result<()> {
-    {
-        println!("Size of Val: {}", std::mem::size_of::<Value>());
-    }
+    let config = CONFIG.get_or_init(|| {
+        let mut env_args = env::args();
+        let mut print_tokens = false;
+        let mut clear_history= false;
+        let mut history_path = None;
 
-    println!("Lank Version 0.0.1");
-    println!("Enter 'exit' to exit");
+        while let Some(arg) = env_args.next() {
+            match arg.as_ref() {
+                "-c" | "--clear-history" => clear_history = true,
+                "-t" | "--print-ast" => print_tokens = true,
+                "-p" | "--history-path" => history_path = env_args.next(),
+                _ => continue
+            }
+        }
+
+        Config {
+            print_tokens,
+            clear_history,
+            history_path
+        }
+    });
+
+    let stdout = std::io::stdout();
+    let mut lock = stdout.lock();
+
+    writeln!(lock, "Lank Version 0.0.1")?;
+    writeln!(lock, "Enter 'exit' to exit")?;
 
     let reader = Interface::new("Lank").unwrap();
-
-    let history_path = Path::new("../history.txt");
-
-    let env_args = env::args().collect::<Vec<String>>();
-    if history_path.exists() && ! env_args.contains(&"-c".to_string()) | env_args.contains(&"--clear-history".to_string()) {
-        reader.load_history(history_path).unwrap();
-    } else {
-        File::create("../history.txt")?;
+    if let Some(path) = &config.history_path {
+        if Path::new(path).exists() ^ config.clear_history {
+            reader.load_history(path)?
+        } else if config.clear_history {
+            reader.clear_history()
+        } else {
+            File::create("../history.txt")?;
+        }
     }
-
+    
     reader.set_prompt(PROMPT).unwrap();
 
     let mut env = Env::new_ptr();
@@ -38,20 +66,20 @@ fn main() -> std::io::Result<()> {
         if input.eq("exit") {
             break;
         } else if input.eq("(display env)") {
-            println!("Lank> env: {:#?}", *env.clone());
+            writeln!(lock, "Lank> env: {:#?}", *env.clone())?;
         } else if input.eq("") {
             continue;
         } else {
             let val = eval(input.as_ref(), &mut env);
-            print!("Lank> ");
+            write!(lock, "Lank> ")?;
             match val {
-                Err(e) => println!("{e}"),
-                Ok(v) => println!("{v}")
+                Err(e) => writeln!(lock, "{e}")?,
+                Ok(v) => writeln!(lock, "{v}")?,
             }
         }
         reader.add_history(input);
     }
     reader.save_history("../history.txt")?;
-    println!("Bye :3");
+    writeln!(lock, "Bye :3")?;
     Ok(())
 }

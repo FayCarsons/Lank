@@ -1,6 +1,6 @@
-use crate::utils::{error::LankError, value::Form, env::set_env};
+use crate::utils::{env::set_env, error::LankError, value::Form};
 
-use super::{eval_value, fun::nil, Env, EnvPtr, EvalResult, Value, control::eval_symbol};
+use super::{control::eval_symbol, eval_value, fun::nil, Env, EnvPtr, EvalResult, Value};
 use std::rc::Rc;
 
 pub fn eval_ternary(list: &[Value], env: &mut EnvPtr) -> EvalResult {
@@ -84,7 +84,7 @@ pub fn eval_if_let(list: &[Value], env: &mut EnvPtr) -> EvalResult {
             return Err(LankError::SyntaxError);
         };
         let mut temp_env = Env::extend(env.clone());
-        set_env(&name.to_string(), &val, &mut temp_env)?;
+        set_env(name.as_ref(), &val, &mut temp_env)?;
         eval_value(true_body, &mut temp_env)
     }
 }
@@ -111,7 +111,7 @@ pub fn eval_when_let(list: &[Value], env: &mut EnvPtr) -> EvalResult {
             return Err(LankError::SyntaxError);
         };
         let mut temp_env = Env::extend(env.clone());
-        set_env(&name.to_string(), &val, &mut temp_env)?;
+        set_env(name.as_ref(), &val, &temp_env)?;
         eval_value(body, &mut temp_env)
     }
 }
@@ -262,9 +262,11 @@ pub fn eval_is_fun(list: &[Value], env: &mut EnvPtr) -> EvalResult {
     }
 }
 
-pub fn eval_is_map(list: &[Value], env: &mut EnvPtr) -> EvalResult {
-    let arg = list.first().ok_or(LankError::NumArguments("Map?".to_owned(), 1))?;
-    
+pub fn eval_is_map(list: &[Value], env: &EnvPtr) -> EvalResult {
+    let arg = list
+        .first()
+        .ok_or(LankError::NumArguments("Map?".to_owned(), 1))?;
+
     let arg = if let Value::Symbol(maybe) = arg {
         eval_symbol(maybe, env)?
     } else {

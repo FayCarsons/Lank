@@ -4,7 +4,6 @@ pub use utils::{
     error::EvalResult,
     parser::parse,
     value::Value,
-    BINARY_OPS, BOOL_OPS, UNARY_OPS,
 };
 
 mod bit;
@@ -21,11 +20,22 @@ use self::{
     conditional::*,
     control::*,
     fun::*,
+    map::{eval_get, eval_keys, eval_merge, eval_update, eval_vals, make_map},
+    r#macro::eval_replace,
     utils::{
         error::{IterResult, LankError},
         value::Form,
-    }, r#macro::eval_replace, map::{eval_get, eval_update, eval_keys, eval_vals, eval_merge, make_map},
+    },
 };
+
+use phf::{phf_set, Set};
+
+pub static BINARY_OPS: Set<&str> = phf_set!(
+    "+", "-", "*", "/", "mod", ">", ">=", "<", "<=", "!=", "==", "<<", ">>", "exp", "&", ",", "^",
+);
+
+pub const UNARY_OPS: Set<&str> = phf_set!("abs", "neg", "bit-flip", "not");
+pub const BOOL_OPS: Set<&str> = phf_set!("xor", "eq", "or", "and");
 
 pub fn eval(program: &str, env: &mut EnvPtr) -> EvalResult {
     match parse(program) {
@@ -49,9 +59,9 @@ fn eval_form(list: &[Value], env: &mut EnvPtr) -> EvalResult {
     };
 
     match head {
-        Value::Symbol(s) if BINARY_OPS.contains(&&**s) => eval_binary_op(list, env),
-        Value::Symbol(s) if UNARY_OPS.contains(&&**s) => eval_unary(list, env),
-        Value::Symbol(s) if BOOL_OPS.contains(&&**s) => eval_bool(list, env),
+        Value::Symbol(s) if BINARY_OPS.contains(&**s) => eval_binary_op(list, env),
+        Value::Symbol(s) if UNARY_OPS.contains(&**s) => eval_unary(list, env),
+        Value::Symbol(s) if BOOL_OPS.contains(&**s) => eval_bool(list, env),
         Value::Symbol(s) => {
             let s = &**s;
             let list = &list[1..];
@@ -96,6 +106,7 @@ fn eval_form(list: &[Value], env: &mut EnvPtr) -> EvalResult {
                 // collections (this includes strings)
                 "nth" => eval_nth(list, env),
                 "rand-nth" => rand_nth(list, env),
+                "sort" => eval_sort(list, env),
                 "shuffle" => eval_shuffle(list, env),
                 "list" | "vec" | "str" | "bit-seq" => make_coll(s, list, env),
                 "range" => eval_range(list, env),
@@ -119,13 +130,13 @@ fn eval_form(list: &[Value], env: &mut EnvPtr) -> EvalResult {
                 "format" => eval_format(list, env),
                 "bytes" => eval_bytes(list, env),
 
-                // Maps 
+                // Maps
                 "hashmap" => make_map(list, env),
                 "get" => eval_get(list, env),
                 "update" => eval_update(list, env),
                 "keys" => eval_keys(list, env),
                 "vals" => eval_vals(list, env),
-                "merge" => eval_merge(list, env), 
+                "merge" => eval_merge(list, env),
 
                 // Bit-seq
                 "bit-set" => set_bit(list, env),
@@ -134,7 +145,7 @@ fn eval_form(list: &[Value], env: &mut EnvPtr) -> EvalResult {
                 "bit-clear" => clear_bit(list, env),
                 "count-ones" => count_set(list, env),
 
-                // Macros 
+                // Macros
                 "replace" => eval_replace(list, env),
 
                 _ => eval_fn_call(s, list, env),
@@ -145,11 +156,9 @@ fn eval_form(list: &[Value], env: &mut EnvPtr) -> EvalResult {
 
         Value::Form(form) => match form {
             Form::Quoted(_) => Ok(head.clone()),
-            Form::Unquoted(vals) => match eval_form(vals, env) {
-                Ok(Value::Fun(ref params, ref body)) => {
-                    eval_lambda_call(params, body, &list[1..], env)
-                }
-                x => x,
+            Form::Unquoted(vals) => match eval_form(vals, env)? {
+                Value::Fun(ref params, ref body) => eval_lambda_call(params, body, &list[1..], env),
+                x => eval_value(&x, env),
             },
         },
 

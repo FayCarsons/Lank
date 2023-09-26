@@ -10,7 +10,6 @@ use crate::utils::{
 use super::{control::eval_symbol, eval_form, eval_value, fun::nil, EnvPtr, EvalResult, Value};
 
 // COLLS (MANY CAN TAKE STRINGS AS WELL)
-
 pub fn make_coll(coll_type: &str, list: &[Value], env: &mut EnvPtr) -> EvalResult {
     let coll = match coll_type {
         "vec" => Value::from(
@@ -160,10 +159,35 @@ pub fn eval_shuffle(list: &[Value], env: &mut EnvPtr) -> EvalResult {
             shuffled.shuffle(&mut rng);
             Value::from(shuffled.iter().collect::<String>())
         }
-        _ => return Err(LankError::WrongType("Shuffle".to_owned()))
+        _ => return Err(LankError::WrongType("Shuffle".to_owned())),
     };
 
     Ok(coll)
+}
+
+pub fn eval_sort(list: &[Value], env: &mut EnvPtr) -> EvalResult {
+    let arg = eval_value(&list[0], env)?;
+
+    match arg {
+        Value::Vec(vals) => {
+            let mut copy = Vec::from_iter(vals.iter().cloned());
+            copy.sort();
+
+            Ok(Value::from(VecDeque::from(copy)))
+        }
+        Value::Form(Form::Unquoted(vals)) => {
+            let mut copy = vals.iter().cloned().collect::<Vec<Value>>();
+            copy.sort();
+            Ok(Value::from(copy))
+        }
+        Value::String(chars) => {
+            let mut copy = chars.as_bytes().to_vec();
+            copy.sort();
+
+            Ok(Value::from(String::from_utf8(copy.to_vec()).map_err(|err| err.to_string())?))
+        }
+        _ => return Err(LankError::WrongType("Sort".to_owned()))
+    }
 }
 
 pub fn eval_first(list: &[Value], env: &mut EnvPtr) -> EvalResult {
@@ -468,7 +492,10 @@ pub fn eval_map(list: &[Value], env: &mut EnvPtr) -> EvalResult {
         }
 
         Value::Map(map) => {
-            let res = map.iter().map(|(k,v)| eval_form(&[fun.clone(), k.clone(), v.clone()], env)).collect::<IterResult>()?;
+            let res = map
+                .iter()
+                .map(|(k, v)| eval_form(&[fun.clone(), k.clone(), v.clone()], env))
+                .collect::<IterResult>()?;
             Ok(Value::from(VecDeque::from(res)))
         }
 
@@ -518,7 +545,13 @@ pub fn eval_map_indexed(list: &[Value], env: &mut EnvPtr) -> EvalResult {
             Ok(Value::from(res))
         }
         Value::Map(map) => {
-            let res = map.iter().enumerate().map(|(idx, (k,v))| eval_form(&[fun.clone(), Value::from(idx), k.clone(), v.clone()], env)).collect::<IterResult>()?;
+            let res = map
+                .iter()
+                .enumerate()
+                .map(|(idx, (k, v))| {
+                    eval_form(&[fun.clone(), Value::from(idx), k.clone(), v.clone()], env)
+                })
+                .collect::<IterResult>()?;
             Ok(Value::from(VecDeque::from(res)))
         }
         Value::String(s) => {
@@ -679,38 +712,66 @@ fn try_filter_coll(fun: Value, coll: Value, env: &mut EnvPtr) -> EvalResult {
 }
 
 pub fn eval_take(list: &[Value], env: &mut EnvPtr) -> EvalResult {
-    let [num, coll] = &list[..2].iter().map(|v| eval_value(v, env)).collect::<IterResult>()?[..] else {
-        return Err(LankError::NumArguments("take".to_owned(), 2))
+    let [num, coll] = &list[..2]
+        .iter()
+        .map(|v| eval_value(v, env))
+        .collect::<IterResult>()?[..]
+    else {
+        return Err(LankError::NumArguments("take".to_owned(), 2));
     };
 
     let Value::Number(num) = num else {
-        return Err(LankError::WrongType("Take".to_owned()))
+        return Err(LankError::WrongType("Take".to_owned()));
     };
 
     let coll = match coll {
-        Value::Vec(vals) => Value::from(vals.iter().cloned().take(*num as usize).collect::<VecDeque<Value>>()),
-        Value::Form(Form::Unquoted(vals)) => Value::from(vals.iter().cloned().take(*num as usize).collect::<Vec<Value>>()),
+        Value::Vec(vals) => Value::from(
+            vals.iter()
+                .cloned()
+                .take(*num as usize)
+                .collect::<VecDeque<Value>>(),
+        ),
+        Value::Form(Form::Unquoted(vals)) => Value::from(
+            vals.iter()
+                .cloned()
+                .take(*num as usize)
+                .collect::<Vec<Value>>(),
+        ),
         Value::String(s) => Value::from(s.chars().take(*num as usize).collect::<String>()),
-        _ => return Err(LankError::WrongType("Take".to_owned()))
+        _ => return Err(LankError::WrongType("Take".to_owned())),
     };
 
     Ok(coll)
 }
 
 pub fn eval_drop(list: &[Value], env: &mut EnvPtr) -> EvalResult {
-    let [num, coll] = &list[..2].iter().map(|v| eval_value(v, env)).collect::<IterResult>()?[..] else {
-        return Err(LankError::NumArguments("take".to_owned(), 2))
+    let [num, coll] = &list[..2]
+        .iter()
+        .map(|v| eval_value(v, env))
+        .collect::<IterResult>()?[..]
+    else {
+        return Err(LankError::NumArguments("take".to_owned(), 2));
     };
 
     let Value::Number(num) = num else {
-        return Err(LankError::WrongType("Take".to_owned()))
+        return Err(LankError::WrongType("Take".to_owned()));
     };
 
     let coll = match coll {
-        Value::Vec(vals) => Value::from(vals.iter().cloned().skip(*num as usize).collect::<VecDeque<Value>>()),
-        Value::Form(Form::Unquoted(vals)) => Value::from(vals.iter().cloned().skip(*num as usize).collect::<Vec<Value>>()),
+        Value::Vec(vals) => Value::from(
+            vals.iter()
+                .cloned()
+                .skip(*num as usize)
+                .collect::<VecDeque<Value>>(),
+        ),
+        Value::Form(Form::Unquoted(vals)) => Value::from(
+            vals.iter()
+                .cloned()
+                .skip(*num as usize)
+                .collect::<Vec<Value>>(),
+        ),
         Value::String(s) => Value::from(s.chars().skip(*num as usize).collect::<String>()),
-        _ => return Err(LankError::WrongType("Take".to_owned()))
+        _ => return Err(LankError::WrongType("Take".to_owned())),
     };
 
     Ok(coll)
