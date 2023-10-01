@@ -9,13 +9,13 @@ MultilineComment = _{ "/*" ~ (!"*/" ~ ANY)* ~ "*/" }
 
 QuotedPrimitive = @{ "'" ~ (Number | Vec | Char | String | Bool | Symbol)}
 
-Void = @{ "Void" | "void" }
+None = @{ "None" | "void" }
 Char = { "\'" ~ ('a'..'z' | 'A'..'Z'){1} ~ "\'"}
 Number = @{ HexDigit | BinaryDigit | FloatLiteral}
     FloatLiteral = {"-"? ~ (ASCII_DIGIT)+ ~ "."? ~ ASCII_DIGIT*}
     BinaryDigit = {"0b" ~ ASCII_BIN_DIGIT{1, 16}}
     HexDigit = {"0x" ~ ASCII_HEX_DIGIT{2, 16}}
-Primitive = { Void | String | Char | Bool | Number | Symbol }
+Primitive = { None | String | Char | Bool | Number | Symbol }
 
 Form = { QuotedForm | NonQuotedForm }
 QuotedForm = { "'" ~ NonQuotedForm }

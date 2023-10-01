@@ -24,7 +24,7 @@ impl FromPest for Value {
     fn from_pest(pair: Pair<Rule>) -> EvalResult {
         let rule = pair.as_rule();
         let val: Value = match rule {
-            Rule::Void => Value::Void,
+            Rule::None => Value::None,
             Rule::Form => Value::from_pest(pair.into_inner().next().unwrap())?,
             Rule::Vec | Rule::QuotedForm | Rule::NonQuotedForm => {
                 let tokens = pair
@@ -97,7 +97,10 @@ impl FromPest for Value {
 }
 
 pub fn parse(program: &str) -> EvalResult {
-    let print_tokens = CONFIG.get().ok_or_else(|| LankError::Other("Config error".to_owned()))?.print_tokens;
+    let print_tokens = CONFIG
+        .get()
+        .ok_or_else(|| LankError::Other("Config error".to_owned()))?
+        .print_tokens;
 
     let parsed = LankParser::parse(Rule::Program, program).map_err(|e| e.to_string());
 

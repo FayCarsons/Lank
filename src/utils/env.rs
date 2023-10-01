@@ -52,7 +52,7 @@ impl Env {
                     }
                 }
 
-                Ok(Value::Void)
+                Ok(Value::None)
             }
         }
     }

@@ -4,16 +4,16 @@ pub mod utils;
 use utils::env::Env;
 
 mod core;
-use core::{eval};
+use core::eval;
 
 use linefeed::{Interface, ReadResult};
-use std::{env, fs::File, path::{Path}, io::Write, sync::OnceLock};
+use std::{env, fs::File, io::Write, path::Path, sync::OnceLock};
 
 const PROMPT: &str = "Lank> ";
 pub struct Config {
     print_tokens: bool,
     clear_history: bool,
-    history_path: Option<String>
+    history_path: Option<String>,
 }
 
 static CONFIG: OnceLock<Config> = OnceLock::new();
@@ -22,7 +22,7 @@ fn main() -> std::io::Result<()> {
     let config = CONFIG.get_or_init(|| {
         let mut env_args = env::args();
         let mut print_tokens = false;
-        let mut clear_history= false;
+        let mut clear_history = false;
         let mut history_path = None;
 
         while let Some(arg) = env_args.next() {
@@ -30,14 +30,14 @@ fn main() -> std::io::Result<()> {
                 "-c" | "--clear-history" => clear_history = true,
                 "-t" | "--print-ast" => print_tokens = true,
                 "-p" | "--history-path" => history_path = env_args.next(),
-                _ => continue
+                _ => continue,
             }
         }
 
         Config {
             print_tokens,
             clear_history,
-            history_path
+            history_path,
         }
     });
 
@@ -57,7 +57,7 @@ fn main() -> std::io::Result<()> {
             File::create("../history.txt")?;
         }
     }
-    
+
     reader.set_prompt(PROMPT).unwrap();
 
     let mut env = Env::new_ptr();

@@ -12,7 +12,7 @@ pub type Map = Box<HashMap<Value, Value>>;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Value {
-    Void,
+    None,
     Form(Form),
     Number(f64),
     String(Rc<str>),
@@ -70,11 +70,11 @@ impl std::fmt::Display for Form {
 }
 
 impl Value {
-    pub const NIL: Value = Value::Void;
+    pub const NIL: Value = Value::None;
 
     pub fn type_of(&self) -> &str {
         match self {
-            Self::Void => "Void",
+            Self::None => "None",
             Self::Form(form) => match form {
                 Form::Quoted(_) => "Quoted form",
                 Form::Unquoted(_) => "Unquoted form",
@@ -103,9 +103,9 @@ impl PartialOrd for Value {
             (Self::Vec(a), Self::Vec(b)) => a.partial_cmp(b),
             (Self::String(a), Self::String(b)) => a.partial_cmp(b),
             (Self::Char(a), Self::Char(b)) => a.partial_cmp(b),
-            (_, Self::Void) => Some(std::cmp::Ordering::Greater),
-            (Self::Void, _) => Some(std::cmp::Ordering::Less),
-            _ => Some(std::cmp::Ordering::Equal)
+            (_, Self::None) => Some(std::cmp::Ordering::Greater),
+            (Self::None, _) => Some(std::cmp::Ordering::Less),
+            _ => Some(std::cmp::Ordering::Equal),
         }
     }
 }
@@ -224,7 +224,7 @@ where
     fn from(value: Option<T>) -> Self {
         match value {
             Some(v) => Value::from(v),
-            None => Value::Void,
+            None => Value::None,
         }
     }
 }
@@ -245,7 +245,7 @@ impl From<Value> for String {
             Value::Number(n) => n.to_string(),
             Value::Fun(_, _) => format!("{value}"),
             Value::Symbol(s) => s.to_string(),
-            Value::Void => "".to_string(),
+            Value::None => "".to_string(),
             Value::Vec(_) => format!("{}", value.clone()),
             Value::BitSeq(b) => format!("{:#018b}", b),
             Value::Quoted(val) => String::from(*val),
@@ -269,7 +269,7 @@ impl Hash for Value {
             Self::Number(n) => n.to_bits().hash(state),
             Self::String(s) | Self::Symbol(s) => s.hash(state),
             Self::Vec(v) => v.hash(state),
-            Self::Void => 0.hash(state),
+            Self::None => 0.hash(state),
             Self::Map(map) => map
                 .values()
                 .zip(map.keys())
@@ -284,7 +284,7 @@ impl Eq for Value {}
 impl fmt::Display for Value {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Self::Void => write!(f, "void"),
+            Self::None => write!(f, "void"),
             Self::Form(form) => write!(f, "{form}"),
             Self::Number(n) => write!(f, "{n}"),
             Self::Bool(b) => write!(f, "{b}"),

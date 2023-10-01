@@ -6,6 +6,7 @@ pub use utils::{
     value::Value,
 };
 
+mod args;
 mod bit;
 mod coll;
 mod conditional;
@@ -36,6 +37,10 @@ pub static BINARY_OPS: Set<&str> = phf_set!(
 
 pub const UNARY_OPS: Set<&str> = phf_set!("abs", "neg", "bit-flip", "not");
 pub const BOOL_OPS: Set<&str> = phf_set!("xor", "eq", "or", "and");
+pub const TYPE_CHECKS: Set<&str> = phf_set!(
+    "char?", "number?", "coll?", "vec?", "list?", "string?", "symbol?", "bool?", "fn?", "map?"
+);
+pub const BIT_OPS: Set<&str> = phf_set!("bit-set", "bit-get", "bit-clear", "bit-tog", "count-ones");
 
 pub fn eval(program: &str, env: &mut EnvPtr) -> EvalResult {
     match parse(program) {
@@ -53,15 +58,14 @@ pub fn eval_value(obj: &Value, env: &mut EnvPtr) -> EvalResult {
 }
 
 fn eval_form(list: &[Value], env: &mut EnvPtr) -> EvalResult {
-    let head = match list.first() {
-        Some(op) => op,
-        None => return Err(LankError::EmptyList),
-    };
+    let head = list.first().ok_or_else(|| LankError::EmptyList)?;
 
     match head {
         Value::Symbol(s) if BINARY_OPS.contains(&**s) => eval_binary_op(list, env),
         Value::Symbol(s) if UNARY_OPS.contains(&**s) => eval_unary(list, env),
         Value::Symbol(s) if BOOL_OPS.contains(&**s) => eval_bool(list, env),
+        Value::Symbol(s) if BIT_OPS.contains(&**s) => eval_bit_op(list, env),
+        Value::Symbol(s) if TYPE_CHECKS.contains(&**s) => check_type(list, env),
         Value::Symbol(s) => {
             let s = &**s;
             let list = &list[1..];
@@ -85,19 +89,9 @@ fn eval_form(list: &[Value], env: &mut EnvPtr) -> EvalResult {
                 "when" => eval_when(list, env),
                 "match" => eval_match(list, env),
 
-                // type testing
-                "nil?" => eval_nil(list, env),
+                // nil testing
+                "none?" => eval_none(list, env),
                 "some?" => eval_some(list, env),
-                "char?" => eval_is_char(list, env),
-                "number?" => eval_is_num(list, env),
-                "coll?" => eval_is_coll(list, env),
-                "vec?" => eval_is_vec(list, env),
-                "list?" => eval_is_list(list, env),
-                "string?" => eval_is_string(list, env),
-                "symbol?" => eval_is_symbol(list, env),
-                "bool?" => eval_is_bool(list, env),
-                "fn?" => eval_is_fun(list, env),
-                "map?" => eval_is_map(list, env),
 
                 // type coercion
                 "char" => eval_char(list, env),
@@ -138,13 +132,6 @@ fn eval_form(list: &[Value], env: &mut EnvPtr) -> EvalResult {
                 "vals" => eval_vals(list, env),
                 "merge" => eval_merge(list, env),
 
-                // Bit-seq
-                "bit-set" => set_bit(list, env),
-                "bit-get" => get_bit(list, env),
-                "bit-toggle" => toggle_bit(list, env),
-                "bit-clear" => clear_bit(list, env),
-                "count-ones" => count_set(list, env),
-
                 // Macros
                 "replace" => eval_replace(list, env),
 
@@ -165,7 +152,7 @@ fn eval_form(list: &[Value], env: &mut EnvPtr) -> EvalResult {
         _ => {
             let xs = list
                 .iter()
-                .filter(|x| **x != Value::Void)
+                .filter(|x| **x != Value::None)
                 .map(|v| eval_value(v, env))
                 .collect::<IterResult>()?;
             Ok(Value::from(xs))

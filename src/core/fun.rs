@@ -6,9 +6,15 @@ use std::{
     rc::Rc,
 };
 
-use crate::utils::error::{IterResult, LankError};
+use crate::{
+    core::args::assert_string,
+    utils::error::{IterResult, LankError},
+};
 
-use super::{eval, eval_value, Env, EnvPtr, EvalResult, Value};
+use super::{
+    args::{assert_num, assert_symbol, get_args},
+    eval, eval_value, Env, EnvPtr, EvalResult, Value,
+};
 
 // Fix this!! could be handled much more elegantly
 pub fn eval_binary_op(list: &[Value], env: &mut EnvPtr) -> EvalResult {
@@ -118,7 +124,7 @@ pub fn eval_unary(list: &[Value], env: &mut EnvPtr) -> EvalResult {
                 Err(LankError::NotANumber)
             }
         },
-        "not" => |o: Value| Ok(Value::Bool(nil(&o))),
+        "not" => |o: Value| Ok(Value::Bool(none(&o))),
         _ => return Err(LankError::UnknownFunction(operator.to_string())),
     };
 
@@ -127,21 +133,15 @@ pub fn eval_unary(list: &[Value], env: &mut EnvPtr) -> EvalResult {
     operation(arg)
 }
 
-// TODO figure out float nil
-// in the meantime this works
-#[inline(always)]
-pub fn nil(x: &Value) -> bool {
-    *x == Value::Void || *x == Value::Bool(false) || *x == Value::Number(0.)
+// TODO figure out float equality
+// in the meantime this (kind of :/) works
+pub fn none(x: &Value) -> bool {
+    *x == Value::None || *x == Value::Bool(false) || *x == Value::Number(0.)
 }
 
 // IMPLEMENT ARBITRARY ARITIES
 pub fn eval_bool(list: &[Value], env: &mut EnvPtr) -> EvalResult {
-    let head = &list[0];
-
-    let Value::Symbol(operator) = head else {
-        return Err(LankError::SyntaxError);
-    };
-
+    let operator = assert_symbol(&list[0], LankError::SyntaxError)?;
     let args = &list[1..];
 
     let args = args
@@ -149,13 +149,10 @@ pub fn eval_bool(list: &[Value], env: &mut EnvPtr) -> EvalResult {
         .map(|a| eval_value(a, env))
         .collect::<IterResult>()?;
 
-    let [lhs, rhs] = &args[..] else {
-        return Err(LankError::NumArguments(operator.to_string(), 2));
-    };
+    let [lhs, rhs] = get_args::<2>(&args, LankError::NumArguments(operator.to_string(), 2))?;
+    let [lhs, rhs] = [none(&lhs), none(&rhs)];
 
-    let [lhs, rhs] = [nil(lhs), nil(rhs)];
-
-    match &**operator {
+    match &*operator {
         "xor" => Ok(Value::Bool(lhs ^ rhs)),
         "or" => Ok(Value::Bool(lhs | rhs)),
         "eq" => Ok(Value::Bool(lhs == rhs)),
@@ -177,7 +174,7 @@ pub fn display(list: &[Value], env: &mut EnvPtr) -> EvalResult {
     });
     println!();
     std::io::stdout().flush().unwrap();
-    Ok(Value::Void)
+    Ok(Value::None)
 }
 
 pub fn gen_rand(list: &[Value], env: &mut EnvPtr) -> EvalResult {
@@ -189,21 +186,19 @@ pub fn gen_rand(list: &[Value], env: &mut EnvPtr) -> EvalResult {
         .collect::<IterResult>()?;
 
     match &list[..] {
-        [end] => {
-            let Value::Number(num) = end else {
-                return Err(LankError::NumArguments("Rand".to_owned(), 1));
-            };
-            if *num < 1. {
+        [high] => {
+            let num = assert_num(high, LankError::WrongType("rand".to_owned()))?;
+            if num <= 1. {
                 return Ok(Value::Number(0.));
             }
-            Ok(Value::Number(rng.gen_range(0..*num as usize) as f64))
+            Ok(Value::Number(rng.gen_range(0..num as usize) as f64))
         }
-        [start, end] => {
-            let (Value::Number(st), Value::Number(en)) = (start, end) else {
-                return Err(LankError::NumArguments("Rand".to_owned(), 1));
+        [low, high] => {
+            let (Value::Number(low), Value::Number(high)) = (low, high) else {
+                return Err(LankError::WrongType("Rand".to_owned()));
             };
             Ok(Value::Number(
-                rng.gen_range(*st as usize..*en as usize) as f64
+                rng.gen_range(*low as usize..*high as usize) as f64
             ))
         }
         _ => Err(LankError::NumArguments("Rand".to_owned(), 1)),
@@ -211,10 +206,7 @@ pub fn gen_rand(list: &[Value], env: &mut EnvPtr) -> EvalResult {
 }
 
 pub fn run_file(list: &[Value]) -> EvalResult {
-    let Value::Symbol(filename) = &list[0] else {
-        return Err(LankError::WrongType("Run-file".to_owned()));
-    };
-
+    let filename = assert_string(&list[0], LankError::WrongType("run-file".to_owned()))?;
     let mut file = File::open(filename.as_ref())?;
 
     let mut buffer = String::new();
@@ -232,18 +224,24 @@ pub fn run_file(list: &[Value]) -> EvalResult {
 pub fn eval_type_of(list: &[Value], env: &mut EnvPtr) -> EvalResult {
     let list = list
         .iter()
-        .map(|v| eval_value(v, env))
+        .map(|v| {
+            let evald = eval_value(v, env)?;
+            let _type = evald.type_of();
+            Ok(Value::from(_type))
+        })
         .collect::<IterResult>()?;
 
-    Ok(Value::Symbol(Rc::from(list[0].type_of())))
+    if list.len() == 1 {
+        Ok(list[0].clone())
+    } else {
+        Ok(Value::from(list))
+    }
 }
 
 pub fn eval_long(list: &[Value], env: &mut EnvPtr) -> EvalResult {
     let arg = eval_value(&list[0], env)?;
 
-    let Value::Number(n) = arg else {
-        return Err(LankError::WrongType("Long".to_owned()));
-    };
+    let n = assert_num(&arg, LankError::WrongType("Long".to_owned()))?;
 
     Ok(Value::Number(n.floor()))
 }
@@ -262,7 +260,7 @@ pub fn eval_char(list: &[Value], env: &mut EnvPtr) -> EvalResult {
                 Ok(Value::Char(
                     s.chars()
                         .next()
-                        .ok_or(LankError::WrongType("Char".to_owned()))?,
+                        .ok_or_else(|| LankError::WrongType("Char".to_owned()))?,
                 ))
             } else {
                 Err(LankError::WrongType("Char".to_owned()))

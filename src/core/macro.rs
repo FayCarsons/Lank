@@ -18,9 +18,9 @@ pub fn eval_replace(list: &[Value], _env: &mut EnvPtr) -> EvalResult {
                 let _ = std::mem::replace(&mut new_form[idx], replacement.clone());
                 Ok(Value::Form(Form::Unquoted(Rc::new(new_form))))
             } else {
-                Ok(Value::Void)
+                Ok(Value::None)
             }
         }
-        _ => Ok(Value::Void),
+        _ => Ok(Value::None),
     }
 }
