@@ -81,3 +81,11 @@ pub fn assert_map(
         Err(error.clone())
     }
 }
+
+pub fn assert_fn(maybe: &Value, error: LankError) -> Result<(Rc<Vec<String>>, Form), LankError> {
+    if let Value::Fun(params, body) = maybe {
+        Ok((params.clone(), body.clone()))
+    } else {
+        return Err(error);
+    }
+}

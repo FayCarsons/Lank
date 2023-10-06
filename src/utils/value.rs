@@ -271,8 +271,7 @@ impl Hash for Value {
             Self::Vec(v) => v.hash(state),
             Self::None => 0.hash(state),
             Self::Map(map) => map
-                .values()
-                .zip(map.keys())
+                .iter()
                 .collect::<Vec<(&Value, &Value)>>()
                 .hash(state),
         }
@@ -292,15 +291,15 @@ impl fmt::Display for Value {
             Self::Symbol(s) => write!(f, "{s}"),
             Self::Char(c) => write!(f, "\'{c}\'"),
             Self::Fun(params, body) => {
-                write!(f, "(fn (")?;
+                write!(f, "(fn [")?;
                 for param in params.iter() {
                     write!(f, "{param}")?;
                 }
-                write!(f, ") (")?;
+                write!(f, "] (")?;
                 for (i, val) in body.iter().enumerate() {
                     write!(f, "{val}{}", if i < body.len() - 1 { " " } else { "" })?;
                 }
-                write!(f, "))")
+                write!(f, ")")
             }
             Self::Vec(v) => {
                 write!(f, "[")?;

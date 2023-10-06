@@ -37,22 +37,26 @@ impl Env {
         self.vars.insert(name.to_string(), val);
     }
 
-    pub fn get(&self, name: &str) -> EvalResult {
+    pub fn get(&self, name: &str) -> Option<Value> {
         match self.vars.get(name) {
-            Some(v) => Ok(v.clone()),
+            Some(v) => Some(v.clone()),
             None => {
                 let mut parent = self.parent.clone();
 
                 while let Some(current) = parent {
-                    let current_read = current.read().map_err(|err| err.to_string())?;
+                    let current_read = current.read();
+                    let Ok(current_read) = current_read else {
+                        return None;
+                    };
+
                     if let Some(ret) = current_read.vars.get(name) {
-                        return Ok(ret.clone());
+                        return Some(ret.clone());
                     } else {
                         parent = current_read.parent.clone();
                     }
                 }
 
-                Ok(Value::None)
+                None
             }
         }
     }
@@ -78,7 +82,8 @@ pub fn set_env(param: &str, val: &Value, env: &EnvPtr) -> Result<(), LankError> 
     Ok(())
 }
 
-pub fn get_env(name: &str, env: &EnvPtr) -> EvalResult {
-    let lock = env.read().map_err(|err| err.to_string())?;
+pub fn get_env(name: &str, env: &EnvPtr) -> Option<Value> {
+    let lock = env.read();
+    let Ok(lock) = lock else { return None };
     lock.get(name)
 }

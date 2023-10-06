@@ -97,7 +97,7 @@ fn eval_form(list: &[Value], env: &mut EnvPtr) -> EvalResult {
                 "char" => eval_char(list, env),
                 "long" => eval_long(list, env),
 
-                // collections (this includes strings)
+                // collections ( strings are colls here >:) )
                 "nth" => eval_nth(list, env),
                 "rand-nth" => rand_nth(list, env),
                 "sort" => eval_sort(list, env),
@@ -139,13 +139,17 @@ fn eval_form(list: &[Value], env: &mut EnvPtr) -> EvalResult {
             }
         }
 
-        Value::Fun(params, body) => eval_lambda_call(params, body, &list[1..], env),
+        Value::Fun(_, _) => eval_lambda_call(head, &list[1..], env),
 
         Value::Form(form) => match form {
             Form::Quoted(_) => Ok(head.clone()),
-            Form::Unquoted(vals) => match eval_form(vals, env)? {
-                Value::Fun(ref params, ref body) => eval_lambda_call(params, body, &list[1..], env),
-                x => eval_value(&x, env),
+            Form::Unquoted(vals) => {
+                let res = eval_form(vals, env)?;
+                if let Value::Fun(_,_) = res {
+                    eval_lambda_call(&res, &list[1..], env)
+                } else {
+                    Ok(res)
+                }
             },
         },
 
