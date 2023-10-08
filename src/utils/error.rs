@@ -23,7 +23,6 @@ pub enum LankError {
     Other(String),
 }
 
-pub type LankResult<T> = std::result::Result<T, LankError>;
 pub type EvalResult = std::result::Result<Value, LankError>;
 pub type IterResult = Result<Vec<Value>, LankError>;
 

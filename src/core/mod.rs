@@ -21,11 +21,11 @@ use self::{
     conditional::*,
     control::*,
     fun::*,
-    map::{eval_get, eval_keys, eval_merge, eval_update, eval_vals, make_map},
+    map::{eval_get, eval_keys, eval_merge, eval_update, eval_vals, make_map, eval_zipmap},
     r#macro::eval_replace,
     utils::{
         error::{IterResult, LankError},
-        value::Form,
+        value::{Form, Args},
     },
 };
 
@@ -43,10 +43,8 @@ pub const TYPE_CHECKS: Set<&str> = phf_set!(
 pub const BIT_OPS: Set<&str> = phf_set!("bit-set", "bit-get", "bit-clear", "bit-tog", "count-ones");
 
 pub fn eval(program: &str, env: &mut EnvPtr) -> EvalResult {
-    match parse(program) {
-        Ok(list) => eval_value(&list, env),
-        Err(e) => Err(e),
-    }
+    let parsed = parse(program)?;
+    eval_value(&parsed, env)
 }
 
 pub fn eval_value(obj: &Value, env: &mut EnvPtr) -> EvalResult {
@@ -57,7 +55,7 @@ pub fn eval_value(obj: &Value, env: &mut EnvPtr) -> EvalResult {
     }
 }
 
-fn eval_form(list: &[Value], env: &mut EnvPtr) -> EvalResult {
+fn eval_form(list: Args, env: &mut EnvPtr) -> EvalResult {
     let head = list.first().ok_or_else(|| LankError::EmptyList)?;
 
     match head {
@@ -131,6 +129,7 @@ fn eval_form(list: &[Value], env: &mut EnvPtr) -> EvalResult {
                 "keys" => eval_keys(list, env),
                 "vals" => eval_vals(list, env),
                 "merge" => eval_merge(list, env),
+                "zipmap" => eval_zipmap(list, env),
 
                 // Macros
                 "replace" => eval_replace(list, env),

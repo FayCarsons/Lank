@@ -1,7 +1,7 @@
 use crate::utils::{
     env::{get_env, set_env},
     error::{IterResult, LankError},
-    value::Form,
+    value::{Form, Args},
 };
 
 use super::{
@@ -12,7 +12,7 @@ use super::{
 };
 use std::{iter, rc::Rc};
 
-pub fn eval_def(list: &[Value], env: &mut EnvPtr) -> EvalResult {
+pub fn eval_def(list: Args, env: &mut EnvPtr) -> EvalResult {
     let def_err = Err(LankError::SyntaxError);
 
     let [name, value] = get_args::<2>(list, LankError::NumArguments("Def".to_owned(), 2))?;
@@ -62,7 +62,7 @@ pub fn eval_symbol(s: &str, env: &EnvPtr) -> EvalResult {
     Ok(val)
 }
 
-pub fn eval_fn_def(list: &[Value]) -> EvalResult {
+pub fn eval_fn_def(list: Args) -> EvalResult {
     let (params, body) = list
         .split_first()
         .ok_or_else(|| LankError::FunctionFormat)?;
@@ -72,7 +72,7 @@ pub fn eval_fn_def(list: &[Value]) -> EvalResult {
             vals.iter()
                 .map(|o| match o {
                     Value::Symbol(s) => Ok(s.to_string()),
-                    _ => Err(format!("Invalid function params")),
+                    _ => Err("Invalid function params".to_string()),
                 })
                 .collect::<Result<Vec<String>, String>>()?,
         )
@@ -83,7 +83,7 @@ pub fn eval_fn_def(list: &[Value]) -> EvalResult {
     Ok(Value::Fun(params, Form::from(body)))
 }
 
-pub fn defn(list: &[Value], env: &mut EnvPtr) -> EvalResult {
+pub fn defn(list: Args, env: &mut EnvPtr) -> EvalResult {
     let (name, fun) = list
         .split_first()
         .ok_or_else(|| LankError::FunctionFormat)?;

@@ -1,13 +1,13 @@
-use std::{
-    collections::{HashMap, VecDeque},
-    rc::Rc,
+use std::rc::Rc;
+
+use crate::utils::{
+    error::LankError,
+    value::{Form, Args, Map, Seq, Vector},
 };
 
-use crate::utils::{error::LankError, value::Form};
+use super::Value;
 
-use super::{EvalResult, Value};
-
-pub fn get_args<const N: usize>(list: &[Value], error: LankError) -> Result<[Value; N], LankError> {
+pub fn get_args<const N: usize>(list: Args, error: LankError) -> Result<[Value; N], LankError> {
     if list.len() != N {
         Err(error)
     } else {
@@ -15,7 +15,7 @@ pub fn get_args<const N: usize>(list: &[Value], error: LankError) -> Result<[Val
     }
 }
 
-pub fn assert_vec(maybe: &Value, error: LankError) -> Result<Rc<VecDeque<Value>>, LankError> {
+pub fn assert_vec(maybe: &Value, error: LankError) -> Result<Vector, LankError> {
     if let Value::Vec(res) = maybe {
         Ok(res.clone())
     } else {
@@ -23,7 +23,7 @@ pub fn assert_vec(maybe: &Value, error: LankError) -> Result<Rc<VecDeque<Value>>
     }
 }
 
-pub fn assert_form(maybe: Value, error: LankError) -> Result<Rc<Vec<Value>>, LankError> {
+pub fn assert_form(maybe: Value, error: LankError) -> Result<Seq, LankError> {
     if let Value::Form(Form::Unquoted(res)) = maybe {
         Ok(res)
     } else {
@@ -71,10 +71,7 @@ pub fn assert_symbol(maybe: &Value, error: LankError) -> Result<Rc<str>, LankErr
     }
 }
 
-pub fn assert_map(
-    maybe: &Value,
-    error: &LankError,
-) -> Result<Box<HashMap<Value, Value>>, LankError> {
+pub fn assert_map(maybe: &Value, error: &LankError) -> Result<Map, LankError> {
     if let Value::Map(m) = maybe {
         Ok(m.clone())
     } else {

@@ -3,7 +3,6 @@ use rand::{thread_rng, Rng};
 use std::{
     fs::File,
     io::{Read, Write},
-    rc::Rc,
 };
 
 use crate::{

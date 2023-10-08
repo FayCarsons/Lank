@@ -9,7 +9,7 @@ MultilineComment = _{ "/*" ~ (!"*/" ~ ANY)* ~ "*/" }
 
 QuotedPrimitive = @{ "'" ~ (Number | Vec | Char | String | Bool | Symbol)}
 
-None = @{ "None" | "void" }
+None = @{ "None" }
 Char = { "\'" ~ ('a'..'z' | 'A'..'Z'){1} ~ "\'"}
 Number = @{ HexDigit | BinaryDigit | FloatLiteral}
     FloatLiteral = {"-"? ~ (ASCII_DIGIT)+ ~ "."? ~ ASCII_DIGIT*}

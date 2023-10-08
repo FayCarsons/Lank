@@ -9,6 +9,7 @@ use std::{
 pub type Seq = Rc<Vec<Value>>;
 pub type Vector = Rc<VecDeque<Value>>;
 pub type Map = Box<HashMap<Value, Value>>;
+pub type Args<'a> = &'a[Value];
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Value {
@@ -283,7 +284,7 @@ impl Eq for Value {}
 impl fmt::Display for Value {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Self::None => write!(f, "void"),
+            Self::None => write!(f, "None"),
             Self::Form(form) => write!(f, "{form}"),
             Self::Number(n) => write!(f, "{n}"),
             Self::Bool(b) => write!(f, "{b}"),

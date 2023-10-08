@@ -3,7 +3,7 @@ use std::collections::{HashMap, VecDeque};
 use crate::utils::error::{IterResult, LankError};
 
 use super::{
-    args::{assert_map, get_args},
+    args::{assert_map, get_args, assert_vec},
     eval_form, eval_value, EnvPtr, EvalResult, Value,
 };
 
@@ -102,4 +102,12 @@ pub fn eval_merge(list: &[Value], env: &mut EnvPtr) -> EvalResult {
         .collect::<HashMap<Value, Value>>();
 
     Ok(Value::from(new_map))
+}
+
+pub fn eval_zipmap(list: &[Value], _env: &mut EnvPtr) -> EvalResult {
+    let [keys, vals] = get_args(list, LankError::NumArguments("Zipmap".to_owned(), 2))?;
+    let [keys, vals] = [assert_vec(&keys, LankError::SyntaxError)?, assert_vec(&vals, LankError::SyntaxError)?];
+
+    let map = keys.iter().cloned().zip(vals.iter().cloned()).collect::<HashMap<Value, Value>>();
+    Ok(Value::from(map))
 }

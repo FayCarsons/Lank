@@ -9,6 +9,8 @@ use core::eval;
 use linefeed::{Interface, ReadResult};
 use std::{env, fs::File, io::Write, path::Path, sync::OnceLock};
 
+use crate::core::Value;
+
 const PROMPT: &str = "Lank> ";
 pub struct Config {
     print_tokens: bool,
@@ -62,6 +64,8 @@ fn main() -> std::io::Result<()> {
 
     let mut env = Env::new_ptr();
 
+    println!("Size of value enum: {}", std::mem::size_of::<Value>());
+
     while let ReadResult::Input(input) = reader.read_line().unwrap() {
         if input.eq("exit") {
             break;
@@ -71,7 +75,6 @@ fn main() -> std::io::Result<()> {
             continue;
         } else {
             let val = eval(input.as_ref(), &mut env);
-            write!(lock, "Lank> ")?;
             match val {
                 Err(e) => writeln!(lock, "{e}")?,
                 Ok(v) => writeln!(lock, "{v}")?,
@@ -80,6 +83,6 @@ fn main() -> std::io::Result<()> {
         reader.add_history(input);
     }
     reader.save_history("../history.txt")?;
-    writeln!(lock, "Bye :3")?;
+    writeln!(lock, "Ok bye :3")?;
     Ok(())
 }
