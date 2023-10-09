@@ -73,6 +73,9 @@ impl Env {
 }
 
 pub fn set_env(param: &str, val: &Value, env: &EnvPtr) -> Result<(), LankError> {
+    if get_env(param, env).is_some() {
+        return Err(LankError::Redefinition(param.to_string()))
+    }
     let mut lock = env
         .write()
         .map_err(|_| LankError::Other("RWLOCK POINSED ON WRITE".to_owned()))?;

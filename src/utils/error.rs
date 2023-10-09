@@ -20,6 +20,7 @@ pub enum LankError {
     ReadlineError(String),
     WrongType(String),
     UnknownFunction(String),
+    Redefinition(String),
     Other(String),
 }
 
@@ -76,7 +77,8 @@ impl From<LankError> for String {
             | LankError::ParseError(s)
             | LankError::ReadlineError(s)
             | LankError::UnknownFunction(s)
-            | LankError::WrongType(s) => s,
+            | LankError::WrongType(s)
+            | LankError::Redefinition(s) => s,
         }
     }
 }
@@ -98,6 +100,7 @@ impl std::fmt::Display for LankError {
             }
             LankError::UnknownFunction(s) => write!(f, "{s} is not a function!"),
             LankError::WrongType(s) => write!(f, "{s}: wrong type!"),
+            LankError::Redefinition(s) => write!(f, "Cannot redefine {s}")
         }
     }
 }

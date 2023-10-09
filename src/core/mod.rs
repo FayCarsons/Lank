@@ -7,7 +7,6 @@ pub use utils::{
 };
 
 mod args;
-mod bit;
 mod coll;
 mod conditional;
 mod control;
@@ -16,13 +15,12 @@ mod r#macro;
 mod map;
 
 use self::{
-    bit::*,
     coll::*,
     conditional::*,
     control::*,
     fun::*,
-    map::{eval_get, eval_keys, eval_merge, eval_update, eval_vals, eval_zipmap, make_map},
-    r#macro::eval_replace,
+    map::*,
+    r#macro::*,
     utils::{
         error::{IterResult, LankError},
         value::{Args, Form},
