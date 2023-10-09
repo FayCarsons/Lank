@@ -1,18 +1,28 @@
 use std::rc::Rc;
 
 use crate::utils::{
-    error::LankError,
-    value::{Form, Args, Map, Seq, Vector},
+    error::{IterResult, LankError},
+    value::{Args, Form, Map, Seq, Vector},
 };
 
-use super::Value;
+use super::{eval_value, EnvPtr, Value};
 
-pub fn get_args<const N: usize>(list: Args, error: LankError) -> Result<[Value; N], LankError> {
+pub fn get_args<const N: usize>(
+    list: Args,
+    env: &mut EnvPtr,
+    error: LankError,
+) -> Result<[Value; N], LankError> {
     if list.len() != N {
         Err(error)
     } else {
-        Ok(std::array::from_fn(|i| list[i].clone()))
+        Ok(std::array::try_from_fn(|i| eval_value(list[i], env))?)
     }
+}
+
+pub fn eval_args(args: Args, env: &mut EnvPtr) -> IterResult {
+    args.iter()
+        .map(|v| eval_value(v, env))
+        .collect::<IterResult>()
 }
 
 pub fn assert_vec(maybe: &Value, error: LankError) -> Result<Vector, LankError> {
@@ -83,6 +93,6 @@ pub fn assert_fn(maybe: &Value, error: LankError) -> Result<(Rc<Vec<String>>, Fo
     if let Value::Fun(params, body) = maybe {
         Ok((params.clone(), body.clone()))
     } else {
-        return Err(error);
+        Err(error)
     }
 }

@@ -1,5 +1,6 @@
-#![feature(iterator_try_reduce)]
-#![feature(try_trait_v2)]
+#![feature(array_try_from_fn)]
+#![allow(clippy::non_canonical_partial_ord_impl)]
+#![allow(clippy::unnecessary_lazy_evaluations)]
 pub mod utils;
 use utils::env::Env;
 
@@ -27,7 +28,7 @@ fn main() -> std::io::Result<()> {
         let mut clear_history = false;
         let mut history_path = None;
 
-        while let Some(arg) = env_args.next() {
+        while let Some(ref arg) = env_args.next() {
             match arg.as_ref() {
                 "-c" | "--clear-history" => clear_history = true,
                 "-t" | "--print-ast" => print_tokens = true,
@@ -75,6 +76,7 @@ fn main() -> std::io::Result<()> {
             continue;
         } else {
             let val = eval(input.as_ref(), &mut env);
+
             match val {
                 Err(e) => writeln!(lock, "{e}")?,
                 Ok(v) => writeln!(lock, "{v}")?,

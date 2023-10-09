@@ -21,11 +21,11 @@ use self::{
     conditional::*,
     control::*,
     fun::*,
-    map::{eval_get, eval_keys, eval_merge, eval_update, eval_vals, make_map, eval_zipmap},
+    map::{eval_get, eval_keys, eval_merge, eval_update, eval_vals, eval_zipmap, make_map},
     r#macro::eval_replace,
     utils::{
         error::{IterResult, LankError},
-        value::{Form, Args},
+        value::{Args, Form},
     },
 };
 
@@ -50,7 +50,7 @@ pub fn eval(program: &str, env: &mut EnvPtr) -> EvalResult {
 pub fn eval_value(obj: &Value, env: &mut EnvPtr) -> EvalResult {
     match obj {
         Value::Symbol(s) => eval_symbol(s, env),
-        Value::Form(Form::Unquoted(vals)) => eval_form(vals, env),
+        Value::Form(Form::Unquoted(vals)) => eval_form(&vals.iter().collect::<Vec<&Value>>(), env),
         x => Ok(x.clone()),
     }
 }
@@ -141,21 +141,21 @@ fn eval_form(list: Args, env: &mut EnvPtr) -> EvalResult {
         Value::Fun(_, _) => eval_lambda_call(head, &list[1..], env),
 
         Value::Form(form) => match form {
-            Form::Quoted(_) => Ok(head.clone()),
+            Form::Quoted(_) => Ok((*head).clone()),
             Form::Unquoted(vals) => {
-                let res = eval_form(vals, env)?;
-                if let Value::Fun(_,_) = res {
+                let res = eval_form(&vals.iter().collect::<Vec<&Value>>(), env)?;
+                if let Value::Fun(_, _) = res {
                     eval_lambda_call(&res, &list[1..], env)
                 } else {
                     Ok(res)
                 }
-            },
+            }
         },
 
         _ => {
             let xs = list
                 .iter()
-                .filter(|x| **x != Value::None)
+                .filter(|x| ***x != Value::None)
                 .map(|v| eval_value(v, env))
                 .collect::<IterResult>()?;
             Ok(Value::from(xs))

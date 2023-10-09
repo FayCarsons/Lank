@@ -9,7 +9,7 @@ use std::{
 pub type Seq = Rc<Vec<Value>>;
 pub type Vector = Rc<VecDeque<Value>>;
 pub type Map = Box<HashMap<Value, Value>>;
-pub type Args<'a> = &'a[Value];
+pub type Args<'a> = &'a [&'a Value];
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Value {
@@ -42,6 +42,14 @@ unsafe impl Sync for Form {}
 impl From<&[Value]> for Form {
     fn from(value: &[Value]) -> Self {
         Form::Unquoted(Rc::new(value.to_vec()))
+    }
+}
+
+impl From<&[&Value]> for Form {
+    fn from(value: &[&Value]) -> Self {
+        Form::Unquoted(Rc::new(
+            value.iter().copied().cloned().collect::<Vec<Value>>(),
+        ))
     }
 }
 
@@ -94,6 +102,7 @@ impl Value {
     }
 }
 
+// This is apparently fucked up but its just for sort so maybe whatever?
 impl PartialOrd for Value {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         match (self, other) {
@@ -255,6 +264,25 @@ impl From<Value> for String {
     }
 }
 
+impl From<&Value> for String {
+    fn from(value: &Value) -> Self {
+        match value {
+            Value::Char(c) => c.to_string(),
+            Value::String(s) => s.to_string(),
+            Value::Form(form) => format!("{form}"),
+            Value::Bool(b) => (if *b { "true" } else { "false" }).to_string(),
+            Value::Number(n) => n.to_string(),
+            Value::Fun(_, _) => format!("{value}"),
+            Value::Symbol(s) => s.to_string(),
+            Value::None => "".to_string(),
+            Value::Vec(_) => format!("{}", value.clone()),
+            Value::BitSeq(b) => format!("{:#018b}", b),
+            Value::Quoted(val) => String::from(*val.clone()),
+            Value::Map(map) => format!("{map:#?}"),
+        }
+    }
+}
+
 impl Hash for Value {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         match self {
@@ -271,10 +299,7 @@ impl Hash for Value {
             Self::String(s) | Self::Symbol(s) => s.hash(state),
             Self::Vec(v) => v.hash(state),
             Self::None => 0.hash(state),
-            Self::Map(map) => map
-                .iter()
-                .collect::<Vec<(&Value, &Value)>>()
-                .hash(state),
+            Self::Map(map) => map.iter().collect::<Vec<(&Value, &Value)>>().hash(state),
         }
     }
 }

@@ -4,33 +4,31 @@ use rand::{seq::SliceRandom, thread_rng};
 
 use crate::utils::{
     error::{IterResult, LankError},
-    value::Form,
+    value::{Args, Form},
 };
 
 use super::{
-    args::{assert_num, assert_string, get_args},
-    control::eval_symbol,
+    args::{assert_num, assert_string, eval_args, get_args},
     eval_form, eval_value,
     fun::none,
     EnvPtr, EvalResult, Value,
 };
 
 // COLLS (MANY CAN TAKE STRINGS AS WELL)
-pub fn make_coll(coll_type: &str, list: &[Value], env: &mut EnvPtr) -> EvalResult {
+pub fn make_coll(coll_type: &str, list: Args, env: &mut EnvPtr) -> EvalResult {
     let coll = match coll_type {
         "vec" => Value::from(
             list.iter()
                 .map(|v| eval_value(v, env))
                 .collect::<Result<VecDeque<Value>, LankError>>()?,
         ),
-        "list" => Value::from(
-            list.iter()
-                .map(|v| eval_value(v, env))
-                .collect::<IterResult>()?,
-        ),
+        "list" => Value::from(eval_args(list, env)?),
         "str" => eval_concat(list, env)?,
         "bit-seq" => {
-            let eval = eval_value(&list[0], env)?;
+            let arg = list
+                .first()
+                .ok_or_else(|| LankError::NumArguments("Bit-seq".to_owned(), 1))?;
+            let eval = eval_value(arg, env)?;
             let Value::Number(n) = eval else {
                 return Err(LankError::WrongType("Bit-seq".to_owned()));
             };
@@ -41,13 +39,10 @@ pub fn make_coll(coll_type: &str, list: &[Value], env: &mut EnvPtr) -> EvalResul
     Ok(coll)
 }
 
-pub fn eval_range(list: &[Value], env: &mut EnvPtr) -> EvalResult {
-    let list = list
-        .iter()
-        .map(|v| eval_value(v, env))
-        .collect::<IterResult>()?;
+pub fn eval_range(list: Args, env: &mut EnvPtr) -> EvalResult {
+    let args = eval_args(list, env)?;
 
-    let nums: Vec<Value> = match &list[..] {
+    let nums: Vec<Value> = match &args[..] {
         [Value::Number(end)] => (0..*end as u64).map(|n| Value::Number(n as f64)).collect(),
         [Value::Number(start), Value::Number(end)] => (*start as u64..*end as u64)
             .map(|n| Value::Number(n as f64))
@@ -63,8 +58,11 @@ pub fn eval_range(list: &[Value], env: &mut EnvPtr) -> EvalResult {
     Ok(Value::from(nums))
 }
 
-pub fn eval_count(list: &[Value], env: &mut EnvPtr) -> EvalResult {
-    let coll = eval_value(&list[0], env)?;
+pub fn eval_count(list: Args, env: &mut EnvPtr) -> EvalResult {
+    let arg = list
+        .first()
+        .ok_or_else(|| LankError::NumArguments("Count".to_owned(), 1))?;
+    let coll = eval_value(arg, env)?;
 
     let len = match coll {
         Value::Form(Form::Unquoted(f)) => f.len(),
@@ -76,17 +74,10 @@ pub fn eval_count(list: &[Value], env: &mut EnvPtr) -> EvalResult {
     Ok(Value::Number(len as f64))
 }
 
-pub fn eval_nth(list: &[Value], env: &mut EnvPtr) -> EvalResult {
-    let args = &list
-        .iter()
-        .map(|v| eval_value(v, env))
-        .collect::<IterResult>()?;
+pub fn eval_nth(list: Args, env: &mut EnvPtr) -> EvalResult {
+    let [coll, idx] = get_args::<2>(list, env, LankError::NumArguments("nth".to_owned(), 2))?;
 
-    let [coll, idx] = get_args::<2>(args, LankError::NumArguments("nth".to_owned(), 2))?;
-
-    let Value::Number(idx) = idx else {
-        return Err(LankError::NotANumber);
-    };
+    let idx = assert_num(&idx, LankError::WrongType("Nth".to_owned()))?;
 
     let res = match coll {
         Value::Form(Form::Unquoted(vals)) => {
@@ -116,8 +107,11 @@ pub fn eval_nth(list: &[Value], env: &mut EnvPtr) -> EvalResult {
     Ok(res)
 }
 
-pub fn rand_nth(list: &[Value], env: &mut EnvPtr) -> EvalResult {
-    let coll = eval_value(&list[0], env)?;
+pub fn rand_nth(list: Args, env: &mut EnvPtr) -> EvalResult {
+    let arg = list
+        .first()
+        .ok_or_else(|| LankError::NumArguments("Rand-nth".to_owned(), 1))?;
+    let coll = eval_value(arg, env)?;
 
     let elem = match coll {
         Value::Form(Form::Unquoted(vals)) => vals
@@ -143,10 +137,14 @@ pub fn rand_nth(list: &[Value], env: &mut EnvPtr) -> EvalResult {
     Ok(elem.clone())
 }
 
-pub fn eval_shuffle(list: &[Value], env: &mut EnvPtr) -> EvalResult {
-    let arg = eval_value(&list[0], env)?;
+pub fn eval_shuffle(list: Args, env: &mut EnvPtr) -> EvalResult {
+    let arg = list
+        .first()
+        .ok_or_else(|| LankError::NumArguments("Shuffle".to_owned(), 1))?;
+    let coll = eval_value(arg, env)?;
+
     let mut rng = thread_rng();
-    let coll = match arg {
+    let coll = match coll {
         Value::Vec(vals) => {
             let mut shuffled = Vec::from_iter(vals.iter().cloned());
             shuffled.shuffle(&mut rng);
@@ -168,10 +166,13 @@ pub fn eval_shuffle(list: &[Value], env: &mut EnvPtr) -> EvalResult {
     Ok(coll)
 }
 
-pub fn eval_sort(list: &[Value], env: &mut EnvPtr) -> EvalResult {
-    let arg = eval_value(&list[0], env)?;
+pub fn eval_sort(list: Args, env: &mut EnvPtr) -> EvalResult {
+    let arg = list
+        .first()
+        .ok_or_else(|| LankError::NumArguments("Sort".to_owned(), 1))?;
+    let coll = eval_value(arg, env)?;
 
-    match arg {
+    match coll {
         Value::Vec(vals) => {
             let mut copy = Vec::from_iter(vals.iter().cloned());
             copy.sort();
@@ -195,8 +196,11 @@ pub fn eval_sort(list: &[Value], env: &mut EnvPtr) -> EvalResult {
     }
 }
 
-pub fn eval_first(list: &[Value], env: &mut EnvPtr) -> EvalResult {
-    let coll = eval_value(&list[0], env)?;
+pub fn eval_first(list: Args, env: &mut EnvPtr) -> EvalResult {
+    let arg = list
+        .first()
+        .ok_or_else(|| LankError::NumArguments("First".to_owned(), 1))?;
+    let coll = eval_value(arg, env)?;
 
     let res = match coll {
         Value::Form(Form::Unquoted(vals)) => {
@@ -226,8 +230,11 @@ pub fn eval_first(list: &[Value], env: &mut EnvPtr) -> EvalResult {
     Ok(res)
 }
 
-pub fn eval_second(list: &[Value], env: &mut EnvPtr) -> EvalResult {
-    let coll = eval_value(&list[0], env)?;
+pub fn eval_second(list: Args, env: &mut EnvPtr) -> EvalResult {
+    let arg = list
+        .first()
+        .ok_or_else(|| LankError::NumArguments("Second".to_owned(), 1))?;
+    let coll = eval_value(arg, env)?;
 
     let res = match coll {
         Value::Form(Form::Unquoted(vals)) => {
@@ -257,8 +264,11 @@ pub fn eval_second(list: &[Value], env: &mut EnvPtr) -> EvalResult {
     Ok(res)
 }
 
-pub fn eval_last(list: &[Value], env: &mut EnvPtr) -> EvalResult {
-    let coll = eval_value(&list[0], env)?;
+pub fn eval_last(list: Args, env: &mut EnvPtr) -> EvalResult {
+    let arg = list
+        .first()
+        .ok_or_else(|| LankError::NumArguments("Last".to_owned(), 1))?;
+    let coll = eval_value(arg, env)?;
 
     let res = match coll {
         Value::Form(Form::Unquoted(vals)) => {
@@ -288,10 +298,13 @@ pub fn eval_last(list: &[Value], env: &mut EnvPtr) -> EvalResult {
     Ok(res)
 }
 
-pub fn eval_rest(list: &[Value], env: &mut EnvPtr) -> EvalResult {
+pub fn eval_rest(list: Args, env: &mut EnvPtr) -> EvalResult {
     let not_coll = Err(LankError::WrongType("Rest".to_owned()));
 
-    let coll = eval_value(&list[0], env)?;
+    let arg = list
+        .first()
+        .ok_or_else(|| LankError::NumArguments("Rest".to_owned(), 1))?;
+    let coll = eval_value(arg, env)?;
 
     let res = match coll {
         Value::Form(Form::Unquoted(vals)) => Value::from(vals[1..].to_vec()),
@@ -305,15 +318,10 @@ pub fn eval_rest(list: &[Value], env: &mut EnvPtr) -> EvalResult {
     Ok(res)
 }
 
-pub fn eval_prepend(list: &[Value], env: &mut EnvPtr) -> EvalResult {
+pub fn eval_prepend(list: Args, env: &mut EnvPtr) -> EvalResult {
     let not_coll = Err(LankError::WrongType("Prepend".to_owned()));
 
-    let args = list
-        .iter()
-        .map(|v| eval_value(v, env))
-        .collect::<Result<Vec<Value>, LankError>>()?;
-
-    let [coll, val] = get_args::<2>(&args, LankError::NumArguments("prepend".to_owned(), 2))?;
+    let [coll, val] = get_args::<2>(list, env, LankError::NumArguments("prepend".to_owned(), 2))?;
 
     let res: Value = match val {
         Value::Vec(other) => {
@@ -373,15 +381,10 @@ pub fn eval_prepend(list: &[Value], env: &mut EnvPtr) -> EvalResult {
     Ok(res)
 }
 
-pub fn eval_append(list: &[Value], env: &mut EnvPtr) -> EvalResult {
+pub fn eval_append(list: Args, env: &mut EnvPtr) -> EvalResult {
     let not_coll = Err(LankError::WrongType("Append".to_owned()));
 
-    let args = list
-        .iter()
-        .map(|v| eval_value(v, env))
-        .collect::<Result<Vec<Value>, LankError>>()?;
-
-    let [coll, val] = get_args::<2>(&args, LankError::NumArguments("prepend".to_owned(), 2))?;
+    let [coll, val] = get_args::<2>(list, env, LankError::NumArguments("prepend".to_owned(), 2))?;
 
     let res: Value = match val {
         Value::Vec(other) => {
@@ -443,8 +446,11 @@ pub fn eval_append(list: &[Value], env: &mut EnvPtr) -> EvalResult {
     Ok(res)
 }
 
-pub fn eval_reverse(list: &[Value], env: &mut EnvPtr) -> EvalResult {
-    let coll = eval_value(&list[0], env)?;
+pub fn eval_reverse(list: Args, env: &mut EnvPtr) -> EvalResult {
+    let arg = list
+        .first()
+        .ok_or_else(|| LankError::NumArguments("Reverse".to_owned(), 1))?;
+    let coll = eval_value(arg, env)?;
 
     let res = match coll {
         Value::Form(Form::Unquoted(f)) => {
@@ -458,32 +464,23 @@ pub fn eval_reverse(list: &[Value], env: &mut EnvPtr) -> EvalResult {
     Ok(res)
 }
 
-pub fn eval_map(list: &[Value], env: &mut EnvPtr) -> EvalResult {
+pub fn eval_map(list: Args, env: &mut EnvPtr) -> EvalResult {
     let not_coll = Err(LankError::WrongType("Map".to_owned()));
 
-    let [fun, coll] = get_args::<2>(list, LankError::NumArguments("map".to_owned(), 2))?;
-
-    let coll = eval_value(&coll, env)?;
-
-    let fun = match fun {
-        Value::Fun(_, _) | Value::Symbol(_) => fun.clone(),
-        Value::Form(Form::Unquoted(vals)) => eval_form(&vals, env)?,
-
-        _ => return not_coll,
-    };
+    let [fun, coll] = get_args::<2>(list, env, LankError::NumArguments("map".to_owned(), 2))?;
 
     match coll {
         Value::Vec(vector) => {
             let res = vector
                 .iter()
-                .map(|v| eval_form(&[fun.clone(), v.clone()], env))
+                .map(|v| eval_form(&[&fun, v], env))
                 .collect::<IterResult>()?;
             Ok(Value::Vec(Rc::new(res.into())))
         }
         Value::Form(Form::Unquoted(vals)) => {
             let res = vals
                 .iter()
-                .map(|v| eval_form(&[fun.clone(), v.clone()], env))
+                .map(|v| eval_form(&[&fun, v], env))
                 .collect::<IterResult>()?;
             Ok(Value::from(res))
         }
@@ -491,7 +488,7 @@ pub fn eval_map(list: &[Value], env: &mut EnvPtr) -> EvalResult {
         Value::Map(map) => {
             let res = map
                 .iter()
-                .map(|(k, v)| eval_form(&[fun.clone(), k.clone(), v.clone()], env))
+                .map(|(k, v)| eval_form(&[&fun, k, v], env))
                 .collect::<IterResult>()?;
             Ok(Value::from(VecDeque::from(res)))
         }
@@ -499,7 +496,7 @@ pub fn eval_map(list: &[Value], env: &mut EnvPtr) -> EvalResult {
         Value::String(s) => {
             let res = s
                 .chars()
-                .map(|v| eval_form(&[fun.clone(), Value::Char(v)], env))
+                .map(|v| eval_form(&[&fun, &Value::Char(v)], env))
                 .collect::<IterResult>()?;
             Ok(Value::from(res))
         }
@@ -507,26 +504,21 @@ pub fn eval_map(list: &[Value], env: &mut EnvPtr) -> EvalResult {
     }
 }
 
-pub fn eval_map_indexed(list: &[Value], env: &mut EnvPtr) -> EvalResult {
+pub fn eval_map_indexed(list: Args, env: &mut EnvPtr) -> EvalResult {
     let not_coll = Err(LankError::WrongType("Map".to_owned()));
 
-    let [fun, coll] = get_args::<2>(list, LankError::NumArguments("map-indexed".to_string(), 2))?;
-
-    let coll = eval_value(&coll, env)?;
-
-    let fun = match fun {
-        Value::Fun(_, _) | Value::Symbol(_) => fun.clone(),
-        Value::Form(Form::Unquoted(vals)) => eval_form(&vals, env)?,
-
-        _ => return not_coll,
-    };
+    let [fun, coll] = get_args::<2>(
+        list,
+        env,
+        LankError::NumArguments("map-indexed".to_string(), 2),
+    )?;
 
     match coll {
         Value::Vec(vector) => {
             let res = vector
                 .iter()
                 .enumerate()
-                .map(|(idx, item)| eval_form(&[fun.clone(), Value::from(idx), item.clone()], env))
+                .map(|(idx, item)| eval_form(&[&fun, &Value::from(idx), item], env))
                 .collect::<IterResult>()?;
             Ok(Value::Vec(Rc::new(res.into())))
         }
@@ -535,7 +527,7 @@ pub fn eval_map_indexed(list: &[Value], env: &mut EnvPtr) -> EvalResult {
             let res = vals
                 .iter()
                 .enumerate()
-                .map(|(idx, item)| eval_form(&[fun.clone(), Value::from(idx), item.clone()], env))
+                .map(|(idx, item)| eval_form(&[&fun, &Value::from(idx), item], env))
                 .collect::<IterResult>()?;
             Ok(Value::from(res))
         }
@@ -543,9 +535,7 @@ pub fn eval_map_indexed(list: &[Value], env: &mut EnvPtr) -> EvalResult {
             let res = map
                 .iter()
                 .enumerate()
-                .map(|(idx, (k, v))| {
-                    eval_form(&[fun.clone(), Value::from(idx), k.clone(), v.clone()], env)
-                })
+                .map(|(idx, (k, v))| eval_form(&[&fun, &Value::from(idx), k, v], env))
                 .collect::<IterResult>()?;
             Ok(Value::from(VecDeque::from(res)))
         }
@@ -553,9 +543,7 @@ pub fn eval_map_indexed(list: &[Value], env: &mut EnvPtr) -> EvalResult {
             let res = s
                 .chars()
                 .enumerate()
-                .map(|(idx, item)| {
-                    eval_form(&[fun.clone(), Value::from(idx), Value::from(item)], env)
-                })
+                .map(|(idx, item)| eval_form(&[&fun, &Value::from(idx), &Value::from(item)], env))
                 .collect::<IterResult>()?;
             Ok(Value::from(res))
         }
@@ -563,18 +551,10 @@ pub fn eval_map_indexed(list: &[Value], env: &mut EnvPtr) -> EvalResult {
     }
 }
 
-pub fn eval_reduce(list: &[Value], env: &mut EnvPtr) -> EvalResult {
+pub fn eval_reduce(list: Args, env: &mut EnvPtr) -> EvalResult {
     let not_coll = Err(LankError::WrongType("Reduce".to_owned()));
 
-    let [fun, coll] = get_args::<2>(list, LankError::NumArguments("reduce".to_owned(), 2))?;
-
-    let coll = eval_value(&coll, env)?;
-
-    let fun = match fun {
-        Value::Fun(_, _) | Value::Symbol(_) => fun.clone(),
-        Value::Form(Form::Unquoted(vals)) => eval_form(&vals, env)?,
-        _ => return not_coll,
-    };
+    let [fun, coll] = get_args::<2>(list, env, LankError::NumArguments("reduce".to_owned(), 2))?;
 
     match coll {
         Value::Vec(vector) => {
@@ -604,7 +584,7 @@ pub fn try_fold_val(
     };
 
     for x in iter {
-        let res = eval_form(&[fun.clone(), x, accum], env);
+        let res = eval_form(&[&fun, &x, &accum], env);
 
         accum = res?;
     }
@@ -612,61 +592,39 @@ pub fn try_fold_val(
     Ok(accum)
 }
 
-pub fn eval_apply(list: &[Value], env: &mut EnvPtr) -> EvalResult {
+pub fn eval_apply(list: Args, env: &mut EnvPtr) -> EvalResult {
     let not_coll = Err(LankError::WrongType("Apply".to_owned()));
 
-    let [op, try_coll] = get_args::<2>(list, LankError::NumArguments("apply".to_owned(), 2))?;
+    let [op, coll] = get_args(list, env, LankError::NumArguments("apply".to_owned(), 2))?;
 
-    let mut coll = match try_coll {
-        Value::Symbol(s) => {
-            let res = eval_symbol(&s, env)?;
-            match res {
-                Value::Vec(v) => v.iter().cloned().collect::<Vec<Value>>(),
+    let mut coll = match coll {
+        Value::Vec(v) => v.iter().cloned().collect::<Vec<Value>>(),
+        Value::String(s) => s.chars().map(Value::Char).collect::<Vec<Value>>(),
+
+        Value::Form(Form::Unquoted(vals)) => {
+            match eval_form(&vals.iter().collect::<Vec<&Value>>(), env)? {
                 Value::Form(Form::Unquoted(vals)) => vals.to_vec(),
+                Value::Vec(v) => v.iter().cloned().collect::<Vec<Value>>(),
                 Value::String(s) => s.chars().map(Value::Char).collect::<Vec<Value>>(),
                 _ => return not_coll,
             }
         }
 
-        Value::Vec(v) => v.iter().cloned().collect::<Vec<Value>>(),
-        Value::String(s) => s.chars().map(Value::Char).collect::<Vec<Value>>(),
-
-        Value::Form(Form::Unquoted(vals)) => match eval_form(&vals, env)? {
-            Value::Form(Form::Unquoted(vals)) => vals.to_vec(),
-            Value::Vec(v) => v.iter().cloned().collect::<Vec<Value>>(),
-            Value::String(s) => s.chars().map(Value::Char).collect::<Vec<Value>>(),
-            _ => return not_coll,
-        },
-
         _ => return not_coll,
     };
 
     coll.insert(0, op.clone());
-    eval_form(&coll, env)
+    eval_form(&coll.iter().collect::<Vec<&Value>>(), env)
 }
 
-pub fn eval_filter(list: &[Value], env: &mut EnvPtr) -> EvalResult {
-    let not_coll = Err(LankError::WrongType("Map".to_owned()));
+pub fn eval_filter(list: Args, env: &mut EnvPtr) -> EvalResult {
+    let [fun, coll] = get_args::<2>(list, env, LankError::NumArguments("filter".to_owned(), 2))?;
 
-    let [fun, coll] = get_args::<2>(list, LankError::NumArguments("filter".to_owned(), 2))?;
-
-    let coll = eval_value(&coll, env)?;
-
-    let fun = match fun {
-        Value::Fun(_, _) | Value::Symbol(_) => fun.clone(),
-        Value::Form(Form::Unquoted(vals)) => eval_form(&vals, env)?,
-        _ => return not_coll,
-    };
-
-    try_filter_coll(fun, coll, env)
-}
-
-fn try_filter_coll(fun: Value, coll: Value, env: &mut EnvPtr) -> EvalResult {
     match coll {
         Value::Vec(vec) => {
             let mut new_vec = VecDeque::new();
             for item in vec.iter() {
-                if !none(&eval_form(&[fun.clone(), item.clone()], env)?) {
+                if !none(&eval_form(&[&fun, item], env)?) {
                     println!("Item {item} is Not none");
                     new_vec.push_back(item.clone())
                 }
@@ -676,7 +634,7 @@ fn try_filter_coll(fun: Value, coll: Value, env: &mut EnvPtr) -> EvalResult {
         Value::Form(Form::Unquoted(form)) => {
             let mut new_form = Vec::new();
             for item in form.iter() {
-                if !none(&eval_form(&[fun.clone(), item.clone()], env)?) {
+                if !none(&eval_form(&[&fun, item], env)?) {
                     new_form.push(item.clone());
                 }
             }
@@ -685,7 +643,7 @@ fn try_filter_coll(fun: Value, coll: Value, env: &mut EnvPtr) -> EvalResult {
         Value::String(s) => {
             let mut new_str = String::new();
             for char in s.chars() {
-                if !none(&eval_form(&[fun.clone(), Value::Char(char)], env)?) {
+                if !none(&eval_form(&[&fun, &Value::Char(char)], env)?) {
                     new_str.push(char);
                 }
             }
@@ -695,26 +653,22 @@ fn try_filter_coll(fun: Value, coll: Value, env: &mut EnvPtr) -> EvalResult {
     }
 }
 
-pub fn eval_take(list: &[Value], env: &mut EnvPtr) -> EvalResult {
-    let args = list
-        .iter()
-        .map(|v| eval_value(v, env))
-        .collect::<IterResult>()?;
+pub fn eval_take(list: Args, env: &mut EnvPtr) -> EvalResult {
+    let [num, coll] = get_args::<2>(list, env, LankError::NumArguments("take".to_owned(), 2))?;
 
-    let [num, coll] = get_args::<2>(&args, LankError::NumArguments("take".to_owned(), 2))?;
     let num = assert_num(&num, LankError::WrongType("take".to_owned()))?;
 
     let coll = match coll {
         Value::Vec(vals) => Value::from(
             vals.iter()
-                .cloned()
                 .take(num as usize)
+                .cloned()
                 .collect::<VecDeque<Value>>(),
         ),
         Value::Form(Form::Unquoted(vals)) => Value::from(
             vals.iter()
-                .cloned()
                 .take(num as usize)
+                .cloned()
                 .collect::<Vec<Value>>(),
         ),
         Value::String(s) => Value::from(s.chars().take(num as usize).collect::<String>()),
@@ -724,26 +678,21 @@ pub fn eval_take(list: &[Value], env: &mut EnvPtr) -> EvalResult {
     Ok(coll)
 }
 
-pub fn eval_drop(list: &[Value], env: &mut EnvPtr) -> EvalResult {
-    let args = list
-        .iter()
-        .map(|v| eval_value(v, env))
-        .collect::<IterResult>()?;
-
-    let [num, coll] = get_args::<2>(&args, LankError::NumArguments("take".to_owned(), 2))?;
+pub fn eval_drop(list: Args, env: &mut EnvPtr) -> EvalResult {
+    let [num, coll] = get_args::<2>(list, env, LankError::NumArguments("take".to_owned(), 2))?;
     let num = assert_num(&num, LankError::WrongType("take".to_owned()))?;
 
     let coll = match coll {
         Value::Vec(vals) => Value::from(
             vals.iter()
-                .cloned()
                 .skip(num as usize)
+                .cloned()
                 .collect::<VecDeque<Value>>(),
         ),
         Value::Form(Form::Unquoted(vals)) => Value::from(
             vals.iter()
-                .cloned()
                 .skip(num as usize)
+                .cloned()
                 .collect::<Vec<Value>>(),
         ),
         Value::String(s) => Value::from(s.chars().skip(num as usize).collect::<String>()),
@@ -755,15 +704,11 @@ pub fn eval_drop(list: &[Value], env: &mut EnvPtr) -> EvalResult {
 
 // STRINGS
 
-pub fn eval_concat(list: &[Value], env: &mut EnvPtr) -> EvalResult {
-    let args = list
-        .iter()
-        .map(|v| eval_value(v, env))
-        .collect::<IterResult>()?;
+pub fn eval_concat(list: Args, env: &mut EnvPtr) -> EvalResult {
+    let args = eval_args(list, env)?;
 
     let string = args
         .iter()
-        .cloned()
         .map(String::from)
         .reduce(|a, b| a + &b)
         .ok_or_else(|| LankError::SyntaxError);
@@ -771,11 +716,8 @@ pub fn eval_concat(list: &[Value], env: &mut EnvPtr) -> EvalResult {
     Ok(Value::from(string?))
 }
 
-pub fn eval_format(list: &[Value], env: &mut EnvPtr) -> EvalResult {
-    let args = list
-        .iter()
-        .map(|v| eval_value(v, env))
-        .collect::<IterResult>()?;
+pub fn eval_format(list: Args, env: &mut EnvPtr) -> EvalResult {
+    let args = eval_args(list, env)?;
 
     let string = args
         .first()
@@ -786,14 +728,14 @@ pub fn eval_format(list: &[Value], env: &mut EnvPtr) -> EvalResult {
         string
             .split("{}")
             .zip(args[1..].iter())
-            .map(|(str, val)| str.to_owned() + &String::from(val.clone())),
+            .map(|(str, val)| format!("{str}{}", val)),
     );
 
     Ok(Value::from(res))
 }
 
-pub fn eval_bytes(list: &[Value], env: &mut EnvPtr) -> EvalResult {
-    let str = list.get(0).ok_or_else(|| LankError::NoChildren)?;
+pub fn eval_bytes(list: Args, env: &mut EnvPtr) -> EvalResult {
+    let str = list.first().ok_or_else(|| LankError::NoChildren)?;
 
     let chars = match str {
         Value::Symbol(_) => match eval_value(str, env)? {

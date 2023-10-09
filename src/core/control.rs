@@ -1,56 +1,47 @@
 use crate::utils::{
     env::{get_env, set_env},
     error::{IterResult, LankError},
-    value::{Form, Args},
+    value::{Args, Form},
 };
 
 use super::{
-    args::{assert_fn, assert_num, assert_vec, get_args},
-    eval_form, eval_value,
+    args::{assert_fn, assert_num, assert_symbol, assert_vec, eval_args},
+    eval_value,
     fun::*,
     Env, EnvPtr, EvalResult, Value,
 };
 use std::{iter, rc::Rc};
 
 pub fn eval_def(list: Args, env: &mut EnvPtr) -> EvalResult {
-    let def_err = Err(LankError::SyntaxError);
-
-    let [name, value] = get_args::<2>(list, LankError::NumArguments("Def".to_owned(), 2))?;
-
-    let name = match name {
-        Value::Symbol(s) => s,
-        _ => return def_err,
+    let [name, value] = list else {
+        return Err(LankError::SyntaxError);
     };
 
-    let value = eval_value(&value, env)?;
-    set_env(name.as_ref(), &value, env)?;
+    let name = &assert_symbol(name, LankError::SyntaxError)?;
+
+    let value = &eval_value(value, env)?;
+    set_env(name, value, env)?;
     Ok(Value::None)
 }
 
-pub fn eval_none(list: &[Value], env: &mut EnvPtr) -> EvalResult {
+pub fn eval_none(list: Args, env: &mut EnvPtr) -> EvalResult {
     let val = list.first().ok_or_else(|| LankError::NoChildren)?;
-    let val = eval_value(val, env)?;
+    let val = &eval_value(val, env)?;
 
-    Ok(Value::Bool(none(&val)))
+    Ok(Value::Bool(none(val)))
 }
 
-pub fn eval_some(list: &[Value], env: &mut EnvPtr) -> EvalResult {
+pub fn eval_some(list: Args, env: &mut EnvPtr) -> EvalResult {
     let val = list.first().ok_or_else(|| LankError::NoChildren)?;
-    let val = eval_value(val, env)?;
+    let val = &eval_value(val, env)?;
 
-    Ok(Value::Bool(!none(&val)))
+    Ok(Value::Bool(!none(val)))
 }
 
-pub fn eval_do(list: &[Value], env: &mut EnvPtr) -> EvalResult {
+pub fn eval_do(list: Args, env: &mut EnvPtr) -> EvalResult {
     let exprs = list
         .iter()
-        .map(|expr| {
-            if let Value::Form(Form::Unquoted(vals)) = expr {
-                eval_form(vals, env)
-            } else {
-                eval_value(expr, env)
-            }
-        })
+        .map(|expr| eval_value(expr, env))
         .collect::<IterResult>()?;
 
     Ok(exprs.into_iter().last().unwrap())
@@ -67,18 +58,16 @@ pub fn eval_fn_def(list: Args) -> EvalResult {
         .split_first()
         .ok_or_else(|| LankError::FunctionFormat)?;
 
-    let params = if let Value::Vec(vals) = params {
-        Rc::from(
-            vals.iter()
-                .map(|o| match o {
-                    Value::Symbol(s) => Ok(s.to_string()),
-                    _ => Err("Invalid function params".to_string()),
-                })
-                .collect::<Result<Vec<String>, String>>()?,
-        )
-    } else {
-        return Err(LankError::FunctionFormat);
-    };
+    let params = assert_vec(params, LankError::FunctionFormat)?;
+    let params = Rc::from(
+        params
+            .iter()
+            .map(|o| match o {
+                Value::Symbol(s) => Ok(s.to_string()),
+                _ => Err("Invalid function params".to_string()),
+            })
+            .collect::<Result<Vec<String>, String>>()?,
+    );
 
     Ok(Value::Fun(params, Form::from(body)))
 }
@@ -89,7 +78,7 @@ pub fn defn(list: Args, env: &mut EnvPtr) -> EvalResult {
         .ok_or_else(|| LankError::FunctionFormat)?;
     let fun = eval_fn_def(fun)?;
 
-    eval_def(&[name.clone(), fun], env)
+    eval_def(&[name, &fun], env)
 }
 
 pub fn eval_block(form: Form, env: &mut EnvPtr) -> EvalResult {
@@ -101,35 +90,25 @@ pub fn eval_block(form: Form, env: &mut EnvPtr) -> EvalResult {
     Ok(res.last().ok_or_else(|| LankError::SyntaxError)?.clone())
 }
 
-pub fn eval_fn_call(name: &str, list: &[Value], env: &mut EnvPtr) -> EvalResult {
+pub fn eval_fn_call(name: &str, list: Args, env: &mut EnvPtr) -> EvalResult {
     let func = get_env(name, env).ok_or_else(|| LankError::UnknownFunction(name.to_string()))?;
 
     let (params, body) = assert_fn(&func, LankError::UnknownFunction(name.to_string()))?;
 
     let mut temp_env = Env::extend(env.clone());
-    let vals = list
-        .iter()
-        .map(|v| eval_value(v, &mut temp_env))
-        .collect::<IterResult>()?;
+    let vals = eval_args(list, env)?;
     params
         .iter()
         .zip(vals.iter())
-        .try_for_each(|(param, val)| set_env(param, val, &mut temp_env))?;
+        .try_for_each(|(param, val)| set_env(param, val, &temp_env))?;
 
     eval_block(body, &mut temp_env)
 }
 
-pub fn eval_lambda_call(lambda: &Value, args: &[Value], env: &mut EnvPtr) -> EvalResult {
-    let args = args
-        .iter()
-        .map(|v| eval_value(v, env))
-        .collect::<IterResult>()?;
-
+pub fn eval_lambda_call(lambda: &Value, args: Args, env: &mut EnvPtr) -> EvalResult {
+    let args = eval_args(args, env)?;
     let mut temp_env = Env::extend(env.clone());
-
-    let Value::Fun(params, body) = lambda else {
-        return Err(LankError::SyntaxError);
-    };
+    let (params, body) = assert_fn(lambda, LankError::SyntaxError)?;
 
     params
         .iter()
@@ -139,7 +118,7 @@ pub fn eval_lambda_call(lambda: &Value, args: &[Value], env: &mut EnvPtr) -> Eva
     eval_block(body.clone(), &mut temp_env)
 }
 
-pub fn eval_let(list: &[Value], env: &mut EnvPtr) -> EvalResult {
+pub fn eval_let(list: Args, env: &EnvPtr) -> EvalResult {
     let (binding_form, body) = list.split_first().ok_or_else(|| LankError::SyntaxError)?;
     let mut temp_env = Env::extend(env.clone());
     let bindings = assert_vec(binding_form, LankError::SyntaxError)?;
@@ -148,29 +127,34 @@ pub fn eval_let(list: &[Value], env: &mut EnvPtr) -> EvalResult {
     // FIX THIS
     bindings
         .chunks_exact(2)
-        .try_for_each(|slice| -> Result<(), String> {
-            let [var, val] = get_args::<2>(slice, LankError::SyntaxError)?;
+        .try_for_each(|slice| -> Result<(), LankError> {
+            let [var, val] = slice else {
+                return Err(LankError::SyntaxError);
+            };
 
-            let res = eval_value(&val, &mut temp_env)?;
+            let res = eval_value(val, &mut temp_env)?;
 
-            eval_def(&[var.clone(), res], &mut temp_env)?;
+            eval_def(&[var, &res], &mut temp_env)?;
             Ok(())
         })?;
 
     eval_block(Form::from(body), &mut temp_env)
 }
 
-pub fn eval_repeat(list: &[Value], env: &mut EnvPtr) -> EvalResult {
-    let [num, expr] = get_args::<2>(list, LankError::NumArguments("Repeat".to_owned(), 2))?;
+pub fn eval_repeat(list: Args, env: &mut EnvPtr) -> EvalResult {
+    let [num, expr] = list else {
+        return Err(LankError::NumArguments("Repeat".to_owned(), 2));
+    };
 
+    let num = eval_value(num, env)?;
     let num = assert_num(
         &eval_value(&num, env)?,
-        LankError::WrongType("repeat".to_owned()),
+        LankError::WrongType("Repeat".to_owned()),
     )?;
 
     let coll = iter::repeat(expr)
         .take(num as usize)
-        .map(|v| eval_value(&v, env))
+        .map(|v| eval_value(v, env))
         .collect::<IterResult>()?;
 
     Ok(Value::from(coll))

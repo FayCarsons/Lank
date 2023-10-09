@@ -7,21 +7,23 @@ use std::{
 
 use crate::{
     core::args::assert_string,
-    utils::error::{IterResult, LankError},
+    utils::{
+        error::{IterResult, LankError},
+        value::Args,
+    },
 };
 
 use super::{
-    args::{assert_num, assert_symbol, get_args},
+    args::{assert_num, assert_symbol, eval_args, get_args},
     eval, eval_value, Env, EnvPtr, EvalResult, Value,
 };
 
 // Fix this!! could be handled much more elegantly
-pub fn eval_binary_op(list: &[Value], env: &mut EnvPtr) -> EvalResult {
-    let Value::Symbol(symbol) = &list[0] else {
-        return Err(LankError::SyntaxError);
-    };
+pub fn eval_binary_op(list: Args, env: &mut EnvPtr) -> EvalResult {
+    let arg = list.first().ok_or_else(|| LankError::SyntaxError)?;
+    let symbol = assert_symbol(arg, LankError::SyntaxError)?;
 
-    let operation: fn(f64, f64) -> f64 = match &**symbol {
+    let operation: fn(f64, f64) -> f64 = match &*symbol {
         "+" => |a, b| a + b,
         "-" => |a, b| a - b,
         "*" => |a, b| a * b,
@@ -63,48 +65,33 @@ pub fn eval_binary_op(list: &[Value], env: &mut EnvPtr) -> EvalResult {
         _ => return Err(LankError::WrongType(symbol.to_string())),
     };
 
-    let args = &list[1..];
-    let args = args
-        .iter()
-        .map(|a| eval_value(a, env))
-        .collect::<IterResult>()?;
+    let args = eval_args(&list[1..], env)?;
 
     let res = args
+        .iter()
+        .map(|arg| assert_num(arg, LankError::WrongType(symbol.to_string())))
+        .collect::<Result<Vec<f64>, LankError>>()?
         .into_iter()
-        .map(|arg| {
-            if let Value::Number(num) = arg {
-                num
-            } else {
-                0.
-            }
-        })
-        .reduce(operation);
+        .reduce(operation)
+        .ok_or_else(|| LankError::NotANumber)?;
 
-    if let Some(result) = res {
-        match &**symbol {
-            ">" | ">=" | "<" | "<=" | "!=" | "==" => Ok(Value::Bool(result != 0.)),
-            _ => Ok(Value::Number(result)),
-        }
-    } else {
-        Err(LankError::NotANumber)
+    match &*symbol {
+        ">" | ">=" | "<" | "<=" | "!=" | "==" => Ok(Value::Bool(res != 0.)),
+        _ => Ok(Value::Number(res)),
     }
 }
 
-pub fn eval_unary(list: &[Value], env: &mut EnvPtr) -> EvalResult {
-    let head = &list[0];
+pub fn eval_unary(list: Args, env: &mut EnvPtr) -> EvalResult {
+    let head = list.first().ok_or_else(|| LankError::SyntaxError)?;
 
-    let Value::Symbol(operator) = head else {
-        return Err(LankError::FunctionFormat);
-    };
+    let operator = assert_symbol(head, LankError::SyntaxError)?;
 
-    let operation = match &**operator {
+    let operation = match &*operator {
         "abs" => |o: Value| -> EvalResult {
-            if let Value::Number(num) = o {
-                Ok(Value::Number(num.abs()))
-            } else if let Value::BitSeq(_) = o {
-                Ok(o)
-            } else {
-                Err(LankError::NotANumber)
+            match o {
+                Value::Number(num) => Ok(Value::Number(num.abs())),
+                Value::BitSeq(_) => Ok(o),
+                _ => Err(LankError::NotANumber),
             }
         },
         "neg" => |o: Value| -> EvalResult {
@@ -115,20 +102,20 @@ pub fn eval_unary(list: &[Value], env: &mut EnvPtr) -> EvalResult {
             }
         },
         "bit-flip" => |o: Value| -> EvalResult {
-            if let Value::Number(num) = o {
-                Ok(Value::Number((!(num as i64)) as f64))
-            } else if let Value::BitSeq(num) = o {
-                Ok(Value::BitSeq(!num))
-            } else {
-                Err(LankError::NotANumber)
+            match o {
+                Value::Number(num) => Ok(Value::Number((!(num as i64)) as f64)),
+                Value::BitSeq(num) => Ok(Value::BitSeq(!num)),
+                _ => Err(LankError::NotANumber),
             }
         },
         "not" => |o: Value| Ok(Value::Bool(none(&o))),
-        _ => return Err(LankError::UnknownFunction(operator.to_string())),
+        _ => unreachable!(),
     };
 
-    let arg = eval_value(&list[1], env)?;
-
+    let arg = list
+        .get(1)
+        .ok_or_else(|| LankError::NumArguments("Unary Function".to_owned(), 1))?;
+    let arg = eval_value(arg, env)?;
     operation(arg)
 }
 
@@ -139,17 +126,16 @@ pub fn none(x: &Value) -> bool {
 }
 
 // IMPLEMENT ARBITRARY ARITIES
-pub fn eval_bool(list: &[Value], env: &mut EnvPtr) -> EvalResult {
-    let operator = assert_symbol(&list[0], LankError::SyntaxError)?;
-    let args = &list[1..];
+pub fn eval_bool(list: Args, env: &mut EnvPtr) -> EvalResult {
+    let arg = list.first().ok_or_else(|| LankError::SyntaxError)?;
+    let operator = assert_symbol(arg, LankError::SyntaxError)?;
 
-    let args = args
-        .iter()
-        .map(|a| eval_value(a, env))
-        .collect::<IterResult>()?;
-
-    let [lhs, rhs] = get_args::<2>(&args, LankError::NumArguments(operator.to_string(), 2))?;
-    let [lhs, rhs] = [none(&lhs), none(&rhs)];
+    let [lhs, rhs] = get_args::<2>(
+        &list[1..],
+        env,
+        LankError::NumArguments(operator.to_string(), 2),
+    )?;
+    let [lhs, rhs] = [!none(&lhs), !none(&rhs)];
 
     match &*operator {
         "xor" => Ok(Value::Bool(lhs ^ rhs)),
@@ -160,29 +146,21 @@ pub fn eval_bool(list: &[Value], env: &mut EnvPtr) -> EvalResult {
     }
 }
 
-pub fn display(list: &[Value], env: &mut EnvPtr) -> EvalResult {
-    list.iter().for_each(|x| {
-        let res = eval_value(x, env);
-        print!(
-            "{} ",
-            match res {
-                Ok(v) => v,
-                Err(_) => x.clone(),
-            }
-        );
-    });
+pub fn display(list: Args, env: &mut EnvPtr) -> EvalResult {
+    list.iter().try_for_each(|x| -> Result<(), LankError> {
+        let res = eval_value(x, env)?;
+        print!("{res} ");
+        Ok(())
+    })?;
     println!();
     std::io::stdout().flush().unwrap();
     Ok(Value::None)
 }
 
-pub fn gen_rand(list: &[Value], env: &mut EnvPtr) -> EvalResult {
+pub fn gen_rand(list: Args, env: &mut EnvPtr) -> EvalResult {
     let mut rng = thread_rng();
 
-    let list = list
-        .iter()
-        .map(|v| eval_value(v, env))
-        .collect::<IterResult>()?;
+    let list = eval_args(list, env)?;
 
     match &list[..] {
         [high] => {
@@ -196,6 +174,9 @@ pub fn gen_rand(list: &[Value], env: &mut EnvPtr) -> EvalResult {
             let (Value::Number(low), Value::Number(high)) = (low, high) else {
                 return Err(LankError::WrongType("Rand".to_owned()));
             };
+            if high - low <= 1. {
+                return Ok(Value::Number(*low));
+            }
             Ok(Value::Number(
                 rng.gen_range(*low as usize..*high as usize) as f64
             ))
@@ -204,8 +185,11 @@ pub fn gen_rand(list: &[Value], env: &mut EnvPtr) -> EvalResult {
     }
 }
 
-pub fn run_file(list: &[Value]) -> EvalResult {
-    let filename = assert_string(&list[0], LankError::WrongType("run-file".to_owned()))?;
+pub fn run_file(list: Args) -> EvalResult {
+    let arg = list
+        .first()
+        .ok_or_else(|| LankError::NumArguments("Run-file".to_owned(), 1))?;
+    let filename = assert_string(arg, LankError::WrongType("run-file".to_owned()))?;
     let mut file = File::open(filename.as_ref())?;
 
     let mut buffer = String::new();
@@ -220,7 +204,7 @@ pub fn run_file(list: &[Value]) -> EvalResult {
     result
 }
 
-pub fn eval_type_of(list: &[Value], env: &mut EnvPtr) -> EvalResult {
+pub fn eval_type_of(list: Args, env: &mut EnvPtr) -> EvalResult {
     let list = list
         .iter()
         .map(|v| {
@@ -237,16 +221,18 @@ pub fn eval_type_of(list: &[Value], env: &mut EnvPtr) -> EvalResult {
     }
 }
 
-pub fn eval_long(list: &[Value], env: &mut EnvPtr) -> EvalResult {
-    let arg = eval_value(&list[0], env)?;
+pub fn eval_long(list: Args, env: &mut EnvPtr) -> EvalResult {
+    let arg = list.first().ok_or_else(|| LankError::SyntaxError)?;
+    let arg = eval_value(arg, env)?;
 
     let n = assert_num(&arg, LankError::WrongType("Long".to_owned()))?;
 
     Ok(Value::Number(n.floor()))
 }
 
-pub fn eval_char(list: &[Value], env: &mut EnvPtr) -> EvalResult {
-    let arg = eval_value(&list[0], env)?;
+pub fn eval_char(list: Args, env: &mut EnvPtr) -> EvalResult {
+    let arg = list.first().ok_or_else(|| LankError::SyntaxError)?;
+    let arg = eval_value(arg, env)?;
 
     match arg {
         Value::Number(n) => {
