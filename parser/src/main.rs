@@ -1,18 +1,13 @@
 #![feature(array_try_from_fn)]
 #![allow(clippy::non_canonical_partial_ord_impl)]
 #![allow(clippy::unnecessary_lazy_evaluations)]
-pub mod utils;
-use utils::env::Env;
-
-mod core;
-use core::eval;
-
-mod sequencer;
+pub mod parser;
+use parser::eval;
 
 use linefeed::{Interface, ReadResult};
 use std::{env, fs::File, io::Write, path::Path, sync::OnceLock, collections::HashSet};
 
-use crate::core::Value;
+use model::{value::Value, env::Env};
 
 const PROMPT: &str = "Lank> ";
 pub struct Config {

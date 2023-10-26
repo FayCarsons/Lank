@@ -1,6 +1,6 @@
 use std::collections::{HashMap, VecDeque};
 
-use crate::utils::{error::LankError, value::Args};
+use model::{error::LankError, value::Args};
 
 use super::{
     args::{assert_map, assert_vec, get_args},

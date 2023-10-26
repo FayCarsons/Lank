@@ -9,11 +9,18 @@ pub struct Env {
     parent: Option<EnvPtr>,
 }
 
+impl Default for Env {
+    fn default() -> Self {
+        Env {
+            vars: HashMap::new(),
+            parent: None,
+        }
+    }
+}
+
 impl Env {
     fn new() -> Self {
-        let vars = HashMap::new();
-        let parent = None;
-        Env { vars, parent }
+        Env::default()
     }
 
     pub fn new_ptr() -> EnvPtr {
@@ -42,10 +49,7 @@ impl Env {
                 let mut parent = self.parent.clone();
 
                 while let Some(current) = parent {
-                    let current_read = current.read();
-                    let Ok(current_read) = current_read else {
-                        return None;
-                    };
+                    let current_read = current.read().ok()?;
 
                     if let Some(ret) = current_read.vars.get(name) {
                         return Some(ret.clone());
@@ -73,18 +77,16 @@ impl Env {
 }
 
 pub fn set_env(param: &str, val: &Value, env: &EnvPtr) -> Result<(), LankError> {
-    if get_env(param, env).is_some() {
-        return Err(LankError::Redefinition(param.to_string()))
+    if env.read()?.vars.contains_key(param) {
+        return Err(LankError::Redefinition(param.to_string()));
     }
-    let mut lock = env
-        .write()
-        .map_err(|_| LankError::Other("RWLOCK POINSED ON WRITE".to_owned()))?;
+
+    let mut lock = env.write().map_err(|_| LankError::EnvPoison)?;
     lock.set(param, val.clone());
     Ok(())
 }
 
 pub fn get_env(name: &str, env: &EnvPtr) -> Option<Value> {
-    let lock = env.read();
-    let Ok(lock) = lock else { return None };
+    let lock = env.read().ok()?;
     lock.get(name)
 }

@@ -1,6 +1,6 @@
 use std::rc::Rc;
 
-use crate::utils::{
+use model::{
     error::{IterResult, LankError},
     value::{Args, Form, Map, Seq, Vector},
 };
@@ -33,9 +33,10 @@ pub fn assert_vec(maybe: &Value, error: LankError) -> Result<Vector, LankError> 
     }
 }
 
-pub fn assert_form(maybe: Value, error: LankError) -> Result<Seq, LankError> {
+#[allow(unused)]
+pub fn assert_form(maybe: &Value, error: LankError) -> Result<Seq, LankError> {
     if let Value::Form(Form::Unquoted(res)) = maybe {
-        Ok(res)
+        Ok(res.clone())
     } else {
         Err(error)
     }
@@ -49,9 +50,10 @@ pub fn assert_num(maybe: &Value, error: LankError) -> Result<f64, LankError> {
     }
 }
 
-pub fn assert_bool(maybe: Value, error: LankError) -> Result<bool, LankError> {
+#[allow(unused)]
+pub fn assert_bool(maybe: &Value, error: LankError) -> Result<bool, LankError> {
     if let Value::Bool(res) = maybe {
-        Ok(res)
+        Ok(*res)
     } else {
         Err(error)
     }

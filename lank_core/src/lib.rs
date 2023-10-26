@@ -1,12 +1,12 @@
-pub use crate::utils;
-pub use utils::{
+#![feature(array_try_from_fn)]
+pub use model::{
     env::{Env, EnvPtr},
-    error::EvalResult,
-    parser::parse,
-    value::Value,
+    error::{EvalResult, LankError, IterResult},
+    
+    value::{Value, Args, Form},
 };
 
-mod args;
+pub mod args;
 mod coll;
 mod conditional;
 mod control;
@@ -21,10 +21,6 @@ use self::{
     fun::*,
     map::*,
     r#macro::*,
-    utils::{
-        error::{IterResult, LankError},
-        value::{Args, Form},
-    },
 };
 
 use phf::{phf_set, Set};
@@ -39,11 +35,6 @@ pub const TYPE_CHECKS: Set<&str> = phf_set!(
     "char?", "number?", "coll?", "vec?", "list?", "string?", "symbol?", "bool?", "fn?", "map?"
 );
 pub const BIT_OPS: Set<&str> = phf_set!("bit-set", "bit-get", "bit-clear", "bit-tog", "count-ones");
-
-pub fn eval(program: &str, env: &mut EnvPtr) -> EvalResult {
-    let parsed = parse(program)?;
-    eval_value(&parsed, env)
-}
 
 pub fn eval_value(obj: &Value, env: &mut EnvPtr) -> EvalResult {
     match obj {
@@ -73,7 +64,6 @@ fn eval_form(list: Args, env: &mut EnvPtr) -> EvalResult {
                 "do" => eval_do(list, env),
                 "fn" => eval_fn_def(list),
                 "display" => display(list, env),
-                "run-file" => run_file(list),
                 "rand" => gen_rand(list, env),
 
                 // conditionals
@@ -159,53 +149,4 @@ fn eval_form(list: Args, env: &mut EnvPtr) -> EvalResult {
             Ok(Value::from(xs))
         }
     }
-}
-
-#[test]
-fn match_test() {
-    let program = "(
-                            (def a true)
-                            (match a
-                                true => 1
-                                false => 0)
-                        )";
-    let result = eval(program, &mut Env::new_ptr());
-    assert_eq!(result.unwrap(), Value::Number(1.))
-}
-
-#[test]
-fn when_test() {
-    let program = "(
-                            (def a true)
-                            (when a 1)
-                        )";
-    let result = eval(program, &mut Env::new_ptr());
-    assert_eq!(result.unwrap(), Value::Number(1.))
-}
-
-#[test]
-fn if_test() {
-    let program = "(
-                            (def a true)
-                            (if a 1 0)
-                        )";
-    let result = eval(program, &mut Env::new_ptr());
-    assert_eq!(result.unwrap(), Value::Number(1.))
-}
-
-#[test]
-fn fn_test() {
-    let program = "(
-                            (defn inc (x) (+ x 1))
-                            (inc 0)
-                        )";
-    let result = eval(program, &mut Env::new_ptr());
-    assert_eq!(result.unwrap(), Value::Number(1.));
-
-    let program = "(
-        (defn inc (x) (+ x 1))
-        (inc (- 2 2))
-    )";
-    let result = eval(program, &mut Env::new_ptr());
-    assert_eq!(result.unwrap(), Value::Number(1.));
 }

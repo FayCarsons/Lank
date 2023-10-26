@@ -1,6 +1,6 @@
 use std::rc::Rc;
 
-use crate::utils::{
+use model::{
     error::LankError,
     value::{Args, Form},
 };

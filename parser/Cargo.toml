@@ -1,0 +1,13 @@
+[package]
+name = "parser"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+linefeed = "0.6.0"
+pest = "2.7.3"
+pest_derive = "2.7.3"
+model = {path = "../model"}
+lank_core = {path = "../lank_core"}

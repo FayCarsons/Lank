@@ -79,8 +79,6 @@ impl std::fmt::Display for Form {
 }
 
 impl Value {
-    pub const NIL: Value = Value::None;
-
     pub fn type_of(&self) -> &str {
         match self {
             Self::None => "None",
@@ -100,9 +98,17 @@ impl Value {
             Self::Map(_) => "Map",
         }
     }
+
+    pub fn is_none(&self) -> bool {
+        *self == Self::None || *self == Self::Bool(false) || *self == Self::Number(0.)
+    }
+
+    pub fn is_some(&self) -> bool {
+        ! self.is_none()
+    }
 }
 
-// This is apparently fucked up but its just for sort so maybe whatever?
+// This is apparently bonked up, but its just for sort so maybe whatever?
 impl PartialOrd for Value {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         match (self, other) {

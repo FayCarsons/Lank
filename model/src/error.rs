@@ -1,4 +1,4 @@
-use crate::core::Env;
+use super::env::Env;
 
 use super::value::Value;
 use core::fmt::Debug;
@@ -22,6 +22,7 @@ pub enum LankError {
     UnknownFunction(String),
     Redefinition(String),
     Other(String),
+    EnvPoison
 }
 
 pub type EvalResult = std::result::Result<Value, LankError>;
@@ -79,6 +80,7 @@ impl From<LankError> for String {
             | LankError::UnknownFunction(s)
             | LankError::WrongType(s)
             | LankError::Redefinition(s) => s,
+            LankError::EnvPoison => "Env poisoned".to_owned()
         }
     }
 }
@@ -86,21 +88,22 @@ impl From<LankError> for String {
 impl std::fmt::Display for LankError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            LankError::DivideByZero => write!(f, "Divide by zero!"),
-            LankError::EmptyList => write!(f, "Empty list!"),
-            LankError::FunctionFormat => write!(f, "Syntax error in fn"),
-            LankError::NoChildren => write!(f, "Form has no children / insufficient args !"),
-            LankError::NotANumber => write!(f, "Not a Number!"),
-            LankError::SyntaxError => write!(f, "Syntax error!"),
-            LankError::NumArguments(name, args) => {
+            Self::DivideByZero => write!(f, "Divide by zero!"),
+            Self::EmptyList => write!(f, "Empty list!"),
+            Self::FunctionFormat => write!(f, "Syntax error in fn"),
+            Self::NoChildren => write!(f, "Form has no children / insufficient args !"),
+            Self::NotANumber => write!(f, "Not a Number!"),
+            Self::SyntaxError => write!(f, "Syntax error!"),
+            Self::EnvPoison => write!(f, "Env poisoned"),
+            Self::NumArguments(name, args) => {
                 write!(f, "{name} expected {args} or more arguments!")
             }
-            LankError::Other(s) | LankError::ParseError(s) | LankError::ReadlineError(s) => {
+            Self::Other(s) | Self::ParseError(s) | Self::ReadlineError(s) => {
                 write!(f, "{s}")
             }
-            LankError::UnknownFunction(s) => write!(f, "{s} is not a function!"),
-            LankError::WrongType(s) => write!(f, "{s}: wrong type!"),
-            LankError::Redefinition(s) => write!(f, "Cannot redefine {s}")
+            Self::UnknownFunction(s) => write!(f, "{s} is not a function!"),
+            Self::WrongType(s) => write!(f, "{s}: wrong type!"),
+            Self::Redefinition(s) => write!(f, "Cannot redefine {s}")
         }
     }
 }

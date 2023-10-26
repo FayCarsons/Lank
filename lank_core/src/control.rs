@@ -1,4 +1,4 @@
-use crate::utils::{
+use model::{
     env::{get_env, set_env},
     error::{IterResult, LankError},
     value::{Args, Form},
@@ -28,14 +28,14 @@ pub fn eval_none(list: Args, env: &mut EnvPtr) -> EvalResult {
     let val = list.first().ok_or_else(|| LankError::NoChildren)?;
     let val = &eval_value(val, env)?;
 
-    Ok(Value::Bool(none(val)))
+    Ok(Value::Bool(val.is_none()))
 }
 
 pub fn eval_some(list: Args, env: &mut EnvPtr) -> EvalResult {
     let val = list.first().ok_or_else(|| LankError::NoChildren)?;
     let val = &eval_value(val, env)?;
 
-    Ok(Value::Bool(!none(val)))
+    Ok(Value::Bool(val.is_some()))
 }
 
 pub fn eval_do(list: Args, env: &mut EnvPtr) -> EvalResult {

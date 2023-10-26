@@ -1,8 +1,9 @@
 use crate::CONFIG;
 
-use super::{
+use model::{
     error::{EvalResult, IterResult, LankError},
     value::{Form, Value},
+    env::EnvPtr,
 };
 
 use std::{
@@ -111,6 +112,11 @@ pub fn parse(program: &str) -> EvalResult {
     }
 
     Value::from_pest(parsed?.next().unwrap())
+}
+
+pub fn eval(program: &str, env: &mut EnvPtr) -> EvalResult {
+    let parsed = parse(program)?;
+    lank_core::eval_value(&parsed, env)
 }
 
 #[test]

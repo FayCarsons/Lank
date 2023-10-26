@@ -1,21 +1,14 @@
 #![allow(non_upper_case_globals)]
-use rand::{thread_rng, Rng};
-use std::{
-    fs::File,
-    io::{Read, Write},
-};
+use std::io::Write;
 
-use crate::{
-    core::args::assert_string,
-    utils::{
-        error::{IterResult, LankError},
-        value::Args,
-    },
+use rand::{thread_rng, Rng};
+use model::{
+    error::{IterResult, LankError},
+    value::Args,
 };
 
 use super::{
-    args::{assert_num, assert_symbol, eval_args, get_args},
-    eval, eval_value, Env, EnvPtr, EvalResult, Value,
+    args::{assert_num, assert_symbol, eval_args, get_args}, eval_value, Env, EnvPtr, EvalResult, Value,
 };
 
 // Fix this!! could be handled much more elegantly
@@ -108,7 +101,7 @@ pub fn eval_unary(list: Args, env: &mut EnvPtr) -> EvalResult {
                 _ => Err(LankError::NotANumber),
             }
         },
-        "not" => |o: Value| Ok(Value::Bool(none(&o))),
+        "not" => |o: Value| Ok(Value::Bool(o.is_none())),
         _ => unreachable!(),
     };
 
@@ -117,12 +110,6 @@ pub fn eval_unary(list: Args, env: &mut EnvPtr) -> EvalResult {
         .ok_or_else(|| LankError::NumArguments("Unary Function".to_owned(), 1))?;
     let arg = eval_value(arg, env)?;
     operation(arg)
-}
-
-// TODO figure out float equality
-// in the meantime this (kind of :/) works
-pub fn none(x: &Value) -> bool {
-    *x == Value::None || *x == Value::Bool(false) || *x == Value::Number(0.)
 }
 
 // IMPLEMENT ARBITRARY ARITIES
@@ -135,7 +122,7 @@ pub fn eval_bool(list: Args, env: &mut EnvPtr) -> EvalResult {
         env,
         LankError::NumArguments(operator.to_string(), 2),
     )?;
-    let [lhs, rhs] = [!none(&lhs), !none(&rhs)];
+    let [lhs, rhs] = [lhs.is_some(), rhs.is_some()];
 
     match &*operator {
         "xor" => Ok(Value::Bool(lhs ^ rhs)),
@@ -183,25 +170,6 @@ pub fn gen_rand(list: Args, env: &mut EnvPtr) -> EvalResult {
         }
         _ => Err(LankError::NumArguments("Rand".to_owned(), 1)),
     }
-}
-
-pub fn run_file(list: Args) -> EvalResult {
-    let arg = list
-        .first()
-        .ok_or_else(|| LankError::NumArguments("Run-file".to_owned(), 1))?;
-    let filename = assert_string(arg, LankError::WrongType("run-file".to_owned()))?;
-    let mut file = File::open(filename.as_ref())?;
-
-    let mut buffer = String::new();
-    file.read_to_string(&mut buffer).unwrap();
-
-    let env = &mut Env::new_ptr();
-
-    let begin = std::time::Instant::now();
-    let result = eval(&format!("({buffer})"), env);
-    let end = begin.elapsed();
-    println!("Program Duration: {end:?}");
-    result
 }
 
 pub fn eval_type_of(list: Args, env: &mut EnvPtr) -> EvalResult {

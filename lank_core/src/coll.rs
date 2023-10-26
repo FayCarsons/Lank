@@ -2,7 +2,7 @@ use std::{collections::VecDeque, rc::Rc};
 
 use rand::{seq::SliceRandom, thread_rng};
 
-use crate::utils::{
+use model::{
     error::{IterResult, LankError},
     value::{Args, Form},
 };
@@ -10,7 +10,6 @@ use crate::utils::{
 use super::{
     args::{assert_num, assert_string, eval_args, get_args, assert_bitseq, assert_symbol},
     eval_form, eval_value,
-    fun::none,
     EnvPtr, EvalResult, Value,
 };
 
@@ -650,7 +649,7 @@ pub fn eval_filter(list: Args, env: &mut EnvPtr) -> EvalResult {
         Value::Vec(vec) => {
             let mut new_vec = VecDeque::new();
             for item in vec.iter() {
-                if !none(&eval_form(&[&fun, item], env)?) {
+                if eval_form(&[&fun, item], env)?.is_some() {
                     println!("Item {item} is Not none");
                     new_vec.push_back(item.clone())
                 }
@@ -660,7 +659,7 @@ pub fn eval_filter(list: Args, env: &mut EnvPtr) -> EvalResult {
         Value::Form(Form::Unquoted(form)) => {
             let mut new_form = Vec::new();
             for item in form.iter() {
-                if !none(&eval_form(&[&fun, item], env)?) {
+                if eval_form(&[&fun, item], env)?.is_some() {
                     new_form.push(item.clone());
                 }
             }
@@ -669,7 +668,7 @@ pub fn eval_filter(list: Args, env: &mut EnvPtr) -> EvalResult {
         Value::String(s) => {
             let mut new_str = String::new();
             for char in s.chars() {
-                if !none(&eval_form(&[&fun, &Value::Char(char)], env)?) {
+                if eval_form(&[&fun, &Value::Char(char)], env)?.is_some() {
                     new_str.push(char);
                 }
             }

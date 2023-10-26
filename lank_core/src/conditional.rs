@@ -1,9 +1,8 @@
-use crate::utils::{env::set_env, error::LankError, value::Args};
+use model::{env::set_env, error::LankError, value::Args};
 
 use super::{
     args::{assert_symbol, assert_vec, get_args},
     eval_value,
-    fun::none,
     Env, EnvPtr, EvalResult, Value,
 };
 use std::rc::Rc;
@@ -15,7 +14,7 @@ pub fn eval_ternary(list: Args, env: &mut EnvPtr) -> EvalResult {
 
     let cond = eval_value(cond, env)?;
 
-    if none(&cond) {
+    if cond.is_none() {
         eval_value(false_body, env)
     } else {
         eval_value(true_body, env)
@@ -29,7 +28,7 @@ pub fn eval_when(list: Args, env: &mut EnvPtr) -> EvalResult {
 
     let cond = eval_value(cond, env)?;
 
-    if none(&cond) {
+    if cond.is_none() {
         Ok(Value::None)
     } else {
         eval_value(body, env)
@@ -42,7 +41,7 @@ pub fn eval_match(list: Args, env: &mut EnvPtr) -> EvalResult {
 
     let rest: Vec<&Value> = list[1..]
         .iter()
-        .filter(|&obj| !none(obj) && **obj != Value::Symbol(Rc::from("=>")))
+        .filter(|&obj| obj.is_some() && **obj != Value::Symbol(Rc::from("=>")))
         .cloned()
         .collect();
 
@@ -67,7 +66,7 @@ pub fn eval_if_let(list: Args, env: &mut EnvPtr) -> EvalResult {
 
     let val = eval_value(val, env)?;
 
-    if none(&val) {
+    if val.is_none() {
         eval_value(&false_body, env)
     } else {
         let name = assert_symbol(name, LankError::SyntaxError)?;
@@ -87,7 +86,7 @@ pub fn eval_when_let(list: Args, env: &mut EnvPtr) -> EvalResult {
 
     let val = eval_value(val, env)?;
 
-    if none(&val) {
+    if val.is_none() {
         Ok(Value::None)
     } else {
         let name = assert_symbol(name, LankError::SyntaxError)?;
@@ -102,7 +101,7 @@ pub fn eval_if_not(list: Args, env: &mut EnvPtr) -> EvalResult {
 
     let cond = eval_value(&cond, env)?;
 
-    if none(&cond) {
+    if cond.is_none() {
         eval_value(&true_body, env)
     } else {
         eval_value(&false_body, env)
@@ -114,7 +113,7 @@ pub fn eval_when_not(list: Args, env: &mut EnvPtr) -> EvalResult {
 
     let cond = eval_value(&cond, env)?;
 
-    if none(&cond) {
+    if cond.is_none() {
         eval_value(&body, env)
     } else {
         Ok(Value::None)
