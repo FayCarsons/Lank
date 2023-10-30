@@ -3,19 +3,10 @@ use std::{collections::HashMap, rc::Rc, sync::RwLock};
 
 pub type EnvPtr = Rc<RwLock<Env>>;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct Env {
     vars: HashMap<String, Value>,
     parent: Option<EnvPtr>,
-}
-
-impl Default for Env {
-    fn default() -> Self {
-        Env {
-            vars: HashMap::new(),
-            parent: None,
-        }
-    }
 }
 
 impl Env {

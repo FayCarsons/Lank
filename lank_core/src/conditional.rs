@@ -35,7 +35,7 @@ pub fn eval_when(list: Args, env: &mut EnvPtr) -> EvalResult {
 }
 
 pub fn eval_match(list: Args, env: &mut EnvPtr) -> EvalResult {
-    let val = list.first().ok_or_else(|| LankError::SyntaxError)?;
+    let val = list.first().ok_or(LankError::SyntaxError)?;
     let val = eval_value(val, env)?;
 
     let rest: Vec<&Value> = list[1..]

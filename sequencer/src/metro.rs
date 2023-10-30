@@ -3,7 +3,7 @@ use model::{
     error::LankError,
     value::{Form, Map, Value},
 };
-use std::{rc::Rc, thread::Thread};
+use std::rc::Rc;
 #[derive(Clone, Debug)]
 pub struct Metro {
     /// Takes the function to be executed each (interval) ms

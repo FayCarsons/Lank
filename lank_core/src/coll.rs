@@ -7,7 +7,7 @@ use model::{
     value::{Args, Form},
 };
 
-use crate::{is_builtin, control::eval_symbol, args::higher_order_fn_args};
+use crate::args::higher_order_fn_args;
 
 use super::{
     args::{assert_bitseq, assert_num, assert_string, assert_symbol, eval_args, get_args},
@@ -16,7 +16,7 @@ use super::{
 
 // Bit-seq
 pub fn eval_bit_op(list: Args, env: &mut EnvPtr) -> EvalResult {
-    let op = list.first().ok_or_else(|| LankError::SyntaxError)?;
+    let op = list.first().ok_or(LankError::SyntaxError)?;
     let op = assert_symbol(op, LankError::SyntaxError)?;
     let [bitseq, idx] = get_args::<2>(
         &list[1..],
@@ -142,19 +142,19 @@ pub fn rand_nth(list: Args, env: &mut EnvPtr) -> EvalResult {
     let elem = match coll {
         Value::Form(Form::Unquoted(vals)) => vals
             .choose(&mut thread_rng())
-            .ok_or_else(|| LankError::NoChildren)?
+            .ok_or(LankError::NoChildren)?
             .clone(),
         Value::Vec(vec) => {
             let vec = Vec::from_iter(vec.iter().cloned());
             vec.choose(&mut thread_rng())
-                .ok_or_else(|| LankError::NoChildren)?
+                .ok_or(LankError::NoChildren)?
                 .clone()
         }
         Value::String(s) => {
             let res = s
                 .as_bytes()
                 .choose(&mut thread_rng())
-                .ok_or_else(|| LankError::NoChildren)?;
+                .ok_or(LankError::NoChildren)?;
             Value::Char(char::from(*res))
         }
         _ => return Err(LankError::WrongType("Nth".to_owned())),
@@ -493,7 +493,8 @@ pub fn eval_reverse(list: Args, env: &mut EnvPtr) -> EvalResult {
 pub fn eval_map(list: Args, env: &mut EnvPtr) -> EvalResult {
     let not_coll = Err(LankError::WrongType("Map".to_owned()));
 
-    let (fun, coll) = higher_order_fn_args(list, env, LankError::NumArguments("Map".to_owned(), 2))?;
+    let (fun, coll) =
+        higher_order_fn_args(list, env, LankError::NumArguments("Map".to_owned(), 2))?;
 
     match coll {
         Value::Vec(vector) => {
@@ -533,10 +534,10 @@ pub fn eval_map(list: Args, env: &mut EnvPtr) -> EvalResult {
 pub fn eval_map_indexed(list: Args, env: &mut EnvPtr) -> EvalResult {
     let not_coll = Err(LankError::WrongType("Map".to_owned()));
 
-    let [fun, coll] = get_args::<2>(
+    let (fun, coll) = higher_order_fn_args(
         list,
         env,
-        LankError::NumArguments("map-indexed".to_string(), 2),
+        LankError::NumArguments("Map-indexed".to_owned(), 2),
     )?;
 
     match coll {
@@ -580,7 +581,8 @@ pub fn eval_map_indexed(list: Args, env: &mut EnvPtr) -> EvalResult {
 pub fn eval_reduce(list: Args, env: &mut EnvPtr) -> EvalResult {
     let not_coll = Err(LankError::WrongType("Reduce".to_owned()));
 
-    let [fun, coll] = get_args::<2>(list, env, LankError::NumArguments("reduce".to_owned(), 2))?;
+    let (fun, coll) =
+        higher_order_fn_args(list, env, LankError::NumArguments("reduce".to_owned(), 2))?;
 
     match coll {
         Value::Vec(vector) => {
@@ -621,10 +623,8 @@ pub fn try_fold_val(
 pub fn eval_apply(list: Args, env: &mut EnvPtr) -> EvalResult {
     let not_coll = Err(LankError::WrongType("Apply".to_owned()));
 
-    let op = list.first().ok_or_else(|| LankError::NoChildren)?;
-
-    let coll = list.get(1).ok_or_else(|| LankError::NumArguments("Apply".to_owned(), 2))?;
-    let coll = eval_value(*coll, env)?;
+    let (fun, coll) =
+        higher_order_fn_args(list, env, LankError::NumArguments("Apply".to_owned(), 2))?;
 
     let coll = match coll {
         Value::Vec(v) => v.iter().cloned().collect::<Vec<Value>>(),
@@ -642,11 +642,17 @@ pub fn eval_apply(list: Args, env: &mut EnvPtr) -> EvalResult {
         _ => return not_coll,
     };
 
-    eval_form(&std::iter::once(*op).chain(coll.iter()).collect::<Vec<&Value>>(), env)
+    eval_form(
+        &std::iter::once(&fun)
+            .chain(coll.iter())
+            .collect::<Vec<&Value>>(),
+        env,
+    )
 }
 
 pub fn eval_filter(list: Args, env: &mut EnvPtr) -> EvalResult {
-    let [fun, coll] = get_args::<2>(list, env, LankError::NumArguments("filter".to_owned(), 2))?;
+    let (fun, coll) =
+        higher_order_fn_args(list, env, LankError::NumArguments("Filter".to_owned(), 2))?;
 
     match coll {
         Value::Vec(vec) => {
@@ -739,7 +745,7 @@ pub fn eval_concat(list: Args, env: &mut EnvPtr) -> EvalResult {
         .iter()
         .map(String::from)
         .reduce(|a, b| a + &b)
-        .ok_or_else(|| LankError::SyntaxError);
+        .ok_or(LankError::SyntaxError);
 
     Ok(Value::from(string?))
 }
@@ -763,7 +769,7 @@ pub fn eval_format(list: Args, env: &mut EnvPtr) -> EvalResult {
 }
 
 pub fn eval_bytes(list: Args, env: &mut EnvPtr) -> EvalResult {
-    let str = list.first().ok_or_else(|| LankError::NoChildren)?;
+    let str = list.first().ok_or(LankError::NoChildren)?;
 
     let chars = match str {
         Value::Symbol(_) => match eval_value(str, env)? {

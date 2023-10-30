@@ -1,9 +1,5 @@
-use super::metro::Metro;
 use model::{env::Env, error::LankError};
-use std::{
-    sync::Arc,
-    thread::{self, JoinHandle},
-};
+use std::{sync::Arc, thread::JoinHandle};
 
 pub struct Worker {
     env: Arc<Env>,

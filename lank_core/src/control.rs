@@ -6,9 +6,7 @@ use model::{
 
 use super::{
     args::{assert_fn, assert_num, assert_symbol, assert_vec, eval_args},
-    eval_value,
-    fun::*,
-    Env, EnvPtr, EvalResult, Value,
+    eval_value, Env, EnvPtr, EvalResult, Value,
 };
 use std::{iter, rc::Rc};
 
@@ -25,14 +23,14 @@ pub fn eval_def(list: Args, env: &mut EnvPtr) -> EvalResult {
 }
 
 pub fn eval_none(list: Args, env: &mut EnvPtr) -> EvalResult {
-    let val = list.first().ok_or_else(|| LankError::NoChildren)?;
+    let val = list.first().ok_or(LankError::NoChildren)?;
     let val = &eval_value(val, env)?;
 
     Ok(Value::Bool(val.is_none()))
 }
 
 pub fn eval_some(list: Args, env: &mut EnvPtr) -> EvalResult {
-    let val = list.first().ok_or_else(|| LankError::NoChildren)?;
+    let val = list.first().ok_or(LankError::NoChildren)?;
     let val = &eval_value(val, env)?;
 
     Ok(Value::Bool(val.is_some()))
@@ -54,9 +52,7 @@ pub fn eval_symbol(s: &str, env: &EnvPtr) -> EvalResult {
 }
 
 pub fn eval_fn_def(list: Args) -> EvalResult {
-    let (params, body) = list
-        .split_first()
-        .ok_or_else(|| LankError::FunctionFormat)?;
+    let (params, body) = list.split_first().ok_or(LankError::FunctionFormat)?;
 
     let params = assert_vec(params, LankError::FunctionFormat)?;
     let params = Rc::from(
@@ -73,9 +69,7 @@ pub fn eval_fn_def(list: Args) -> EvalResult {
 }
 
 pub fn defn(list: Args, env: &mut EnvPtr) -> EvalResult {
-    let (name, fun) = list
-        .split_first()
-        .ok_or_else(|| LankError::FunctionFormat)?;
+    let (name, fun) = list.split_first().ok_or(LankError::FunctionFormat)?;
     let fun = eval_fn_def(fun)?;
 
     eval_def(&[name, &fun], env)
@@ -87,7 +81,7 @@ pub fn eval_block(form: Form, env: &mut EnvPtr) -> EvalResult {
         .map(|v| eval_value(v, env))
         .collect::<IterResult>()?;
 
-    Ok(res.last().ok_or_else(|| LankError::SyntaxError)?.clone())
+    Ok(res.last().ok_or(LankError::SyntaxError)?.clone())
 }
 
 pub fn eval_fn_call(name: &str, list: Args, env: &mut EnvPtr) -> EvalResult {
@@ -119,7 +113,7 @@ pub fn eval_lambda_call(lambda: &Value, args: Args, env: &mut EnvPtr) -> EvalRes
 }
 
 pub fn eval_let(list: Args, env: &EnvPtr) -> EvalResult {
-    let (binding_form, body) = list.split_first().ok_or_else(|| LankError::SyntaxError)?;
+    let (binding_form, body) = list.split_first().ok_or(LankError::SyntaxError)?;
     let mut temp_env = Env::extend(env.clone());
     let bindings = assert_vec(binding_form, LankError::SyntaxError)?;
     let bindings = bindings.iter().cloned().collect::<Vec<Value>>();

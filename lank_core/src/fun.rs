@@ -9,12 +9,12 @@ use rand::{thread_rng, Rng};
 
 use super::{
     args::{assert_num, assert_symbol, eval_args, get_args},
-    eval_value, Env, EnvPtr, EvalResult, Value,
+    eval_value, EnvPtr, EvalResult, Value,
 };
 
 // Fix this!! could be handled much more elegantly
 pub fn eval_binary_op(list: Args, env: &mut EnvPtr) -> EvalResult {
-    let arg = list.first().ok_or_else(|| LankError::SyntaxError)?;
+    let arg = list.first().ok_or(LankError::SyntaxError)?;
     let symbol = assert_symbol(arg, LankError::SyntaxError)?;
 
     let operation: fn(f64, f64) -> f64 = match &*symbol {
@@ -67,7 +67,7 @@ pub fn eval_binary_op(list: Args, env: &mut EnvPtr) -> EvalResult {
         .collect::<Result<Vec<f64>, LankError>>()?
         .into_iter()
         .reduce(operation)
-        .ok_or_else(|| LankError::NotANumber)?;
+        .ok_or(LankError::NotANumber)?;
 
     match &*symbol {
         ">" | ">=" | "<" | "<=" | "!=" | "==" => Ok(Value::Bool(res != 0.)),
@@ -76,7 +76,7 @@ pub fn eval_binary_op(list: Args, env: &mut EnvPtr) -> EvalResult {
 }
 
 pub fn eval_unary(list: Args, env: &mut EnvPtr) -> EvalResult {
-    let head = list.first().ok_or_else(|| LankError::SyntaxError)?;
+    let head = list.first().ok_or(LankError::SyntaxError)?;
 
     let operator = assert_symbol(head, LankError::SyntaxError)?;
 
@@ -115,7 +115,7 @@ pub fn eval_unary(list: Args, env: &mut EnvPtr) -> EvalResult {
 
 // IMPLEMENT ARBITRARY ARITIES
 pub fn eval_bool(list: Args, env: &mut EnvPtr) -> EvalResult {
-    let arg = list.first().ok_or_else(|| LankError::SyntaxError)?;
+    let arg = list.first().ok_or(LankError::SyntaxError)?;
     let operator = assert_symbol(arg, LankError::SyntaxError)?;
 
     let [lhs, rhs] = get_args::<2>(
@@ -191,7 +191,7 @@ pub fn eval_type_of(list: Args, env: &mut EnvPtr) -> EvalResult {
 }
 
 pub fn eval_long(list: Args, env: &mut EnvPtr) -> EvalResult {
-    let arg = list.first().ok_or_else(|| LankError::SyntaxError)?;
+    let arg = list.first().ok_or(LankError::SyntaxError)?;
     let arg = eval_value(arg, env)?;
 
     let n = assert_num(&arg, LankError::WrongType("Long".to_owned()))?;
@@ -200,7 +200,7 @@ pub fn eval_long(list: Args, env: &mut EnvPtr) -> EvalResult {
 }
 
 pub fn eval_char(list: Args, env: &mut EnvPtr) -> EvalResult {
-    let arg = list.first().ok_or_else(|| LankError::SyntaxError)?;
+    let arg = list.first().ok_or(LankError::SyntaxError)?;
     let arg = eval_value(arg, env)?;
 
     match arg {
