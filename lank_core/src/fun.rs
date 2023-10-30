@@ -1,14 +1,15 @@
 #![allow(non_upper_case_globals)]
 use std::io::Write;
 
-use rand::{thread_rng, Rng};
 use model::{
     error::{IterResult, LankError},
     value::Args,
 };
+use rand::{thread_rng, Rng};
 
 use super::{
-    args::{assert_num, assert_symbol, eval_args, get_args}, eval_value, Env, EnvPtr, EvalResult, Value,
+    args::{assert_num, assert_symbol, eval_args, get_args},
+    eval_value, Env, EnvPtr, EvalResult, Value,
 };
 
 // Fix this!! could be handled much more elegantly

@@ -4,38 +4,21 @@
 pub mod parser;
 use parser::eval;
 
-use linefeed::{Interface, ReadResult};
-use std::{env, fs::File, io::Write, path::Path, sync::OnceLock, collections::HashSet};
+pub mod cli_config;
+use cli_config::Config;
 
-use model::{value::Value, env::Env};
+use linefeed::{Interface, ReadResult};
+use std::{fs::File, io::Write, path::Path, sync::OnceLock};
+
+use model::env::Env;
 
 const PROMPT: &str = "Lank> ";
-pub struct Config {
-    print_tokens: bool,
-    clear_history: bool,
-    history_path: Option<String>,
-}
 
 static CONFIG: OnceLock<Config> = OnceLock::new();
 
 fn main() -> std::io::Result<()> {
-    let config = CONFIG.get_or_init(|| {
-        let env_args: HashSet<String> = HashSet::from_iter(env::args().skip(1));
-        println!("Env args: {env_args:?}");
-        let print_tokens = env_args.contains("-p") || env_args.contains("--print-ast");
-        let clear_history = env_args.contains("-c") || env_args.contains("--clear-hisory");
-        let history_path = if env_args.contains("-p") || env_args.contains("--history-path") {
-            env_args.into_iter().find(|s| !s.starts_with('-'))
-        } else {
-            None
-        };
-
-        Config {
-            print_tokens,
-            clear_history,
-            history_path,
-        }
-    });
+    let config = Config::new();
+    CONFIG.get_or_init(|| config.clone());
 
     let stdout = std::io::stdout();
     let mut lock = stdout.lock();
@@ -57,8 +40,6 @@ fn main() -> std::io::Result<()> {
     reader.set_prompt(PROMPT).unwrap();
 
     let mut env = Env::new_ptr();
-
-    writeln!(lock, "Size of value enum: {}", std::mem::size_of::<Value>())?;
 
     while let ReadResult::Input(input) = reader.read_line().unwrap() {
         if input.eq("exit") {

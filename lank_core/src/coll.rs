@@ -7,10 +7,11 @@ use model::{
     value::{Args, Form},
 };
 
+use crate::{is_builtin, control::eval_symbol, args::higher_order_fn_args};
+
 use super::{
-    args::{assert_num, assert_string, eval_args, get_args, assert_bitseq, assert_symbol},
-    eval_form, eval_value,
-    EnvPtr, EvalResult, Value,
+    args::{assert_bitseq, assert_num, assert_string, assert_symbol, eval_args, get_args},
+    eval_form, eval_value, EnvPtr, EvalResult, Value,
 };
 
 // Bit-seq
@@ -492,7 +493,7 @@ pub fn eval_reverse(list: Args, env: &mut EnvPtr) -> EvalResult {
 pub fn eval_map(list: Args, env: &mut EnvPtr) -> EvalResult {
     let not_coll = Err(LankError::WrongType("Map".to_owned()));
 
-    let [fun, coll] = get_args::<2>(list, env, LankError::NumArguments("map".to_owned(), 2))?;
+    let (fun, coll) = higher_order_fn_args(list, env, LankError::NumArguments("Map".to_owned(), 2))?;
 
     match coll {
         Value::Vec(vector) => {
@@ -620,9 +621,12 @@ pub fn try_fold_val(
 pub fn eval_apply(list: Args, env: &mut EnvPtr) -> EvalResult {
     let not_coll = Err(LankError::WrongType("Apply".to_owned()));
 
-    let [op, coll] = get_args(list, env, LankError::NumArguments("apply".to_owned(), 2))?;
+    let op = list.first().ok_or_else(|| LankError::NoChildren)?;
 
-    let mut coll = match coll {
+    let coll = list.get(1).ok_or_else(|| LankError::NumArguments("Apply".to_owned(), 2))?;
+    let coll = eval_value(*coll, env)?;
+
+    let coll = match coll {
         Value::Vec(v) => v.iter().cloned().collect::<Vec<Value>>(),
         Value::String(s) => s.chars().map(Value::Char).collect::<Vec<Value>>(),
 
@@ -638,8 +642,7 @@ pub fn eval_apply(list: Args, env: &mut EnvPtr) -> EvalResult {
         _ => return not_coll,
     };
 
-    coll.insert(0, op.clone());
-    eval_form(&coll.iter().collect::<Vec<&Value>>(), env)
+    eval_form(&std::iter::once(*op).chain(coll.iter()).collect::<Vec<&Value>>(), env)
 }
 
 pub fn eval_filter(list: Args, env: &mut EnvPtr) -> EvalResult {

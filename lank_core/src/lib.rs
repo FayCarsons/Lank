@@ -1,9 +1,8 @@
 #![feature(array_try_from_fn)]
 pub use model::{
     env::{Env, EnvPtr},
-    error::{EvalResult, LankError, IterResult},
-    
-    value::{Value, Args, Form},
+    error::{EvalResult, IterResult, LankError},
+    value::{Args, Form, Value},
 };
 
 pub mod args;
@@ -14,14 +13,7 @@ mod fun;
 mod r#macro;
 mod map;
 
-use self::{
-    coll::*,
-    conditional::*,
-    control::*,
-    fun::*,
-    map::*,
-    r#macro::*,
-};
+use self::{coll::*, conditional::*, control::*, fun::*, map::*, r#macro::*, args::*};
 
 use phf::{phf_set, Set};
 
@@ -35,6 +27,12 @@ pub const TYPE_CHECKS: Set<&str> = phf_set!(
     "char?", "number?", "coll?", "vec?", "list?", "string?", "symbol?", "bool?", "fn?", "map?"
 );
 pub const BIT_OPS: Set<&str> = phf_set!("bit-set", "bit-get", "bit-clear", "bit-tog", "count-ones");
+
+
+pub fn is_builtin(value: &Value) -> Result<bool, LankError> {
+    let value = &assert_symbol(value, LankError::WrongType("Expected symbol on lhs of form!".to_owned()))?;
+    Ok(BINARY_OPS.contains(value) || UNARY_OPS.contains(value) || BOOL_OPS.contains(value) || TYPE_CHECKS.contains(value) || BIT_OPS.contains(value))
+}
 
 pub fn eval_value(obj: &Value, env: &mut EnvPtr) -> EvalResult {
     match obj {

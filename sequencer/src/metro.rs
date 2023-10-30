@@ -1,6 +1,9 @@
-use std::{rc::Rc, thread::Thread};
-use model::{value::{Form, Value, Map}, error::LankError};
 use lank_core::args::{assert_bool, assert_num};
+use model::{
+    error::LankError,
+    value::{Form, Map, Value},
+};
+use std::{rc::Rc, thread::Thread};
 #[derive(Clone, Debug)]
 pub struct Metro {
     /// Takes the function to be executed each (interval) ms

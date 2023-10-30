@@ -1,9 +1,9 @@
 use crate::CONFIG;
 
 use model::{
+    env::EnvPtr,
     error::{EvalResult, IterResult, LankError},
     value::{Form, Value},
-    env::EnvPtr,
 };
 
 use std::{

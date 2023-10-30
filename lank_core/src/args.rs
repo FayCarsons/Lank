@@ -1,9 +1,11 @@
 use std::rc::Rc;
 
 use model::{
-    error::{IterResult, LankError},
-    value::{Args, Form, Map, Seq, Vector},
+    error::{IterResult, LankError, EvalResult},
+    value::{Args, Form, Map, Seq, Vector}, env,
 };
+
+use crate::eval_form;
 
 use super::{eval_value, EnvPtr, Value};
 
@@ -96,5 +98,15 @@ pub fn assert_fn(maybe: &Value, error: LankError) -> Result<(Rc<Vec<String>>, Fo
         Ok((params.clone(), body.clone()))
     } else {
         Err(error)
+    }
+}
+
+pub fn higher_order_fn_args(list: &[&Value], env: &mut EnvPtr, err: LankError) -> Result<(Value, Value), LankError> {
+    match list {
+        [fun, coll] => {
+            let c = eval_value(coll,env)?;
+            Ok(((*fun).clone(), c))
+        }
+        _ => return Err(err)
     }
 }

@@ -22,7 +22,7 @@ pub enum LankError {
     UnknownFunction(String),
     Redefinition(String),
     Other(String),
-    EnvPoison
+    EnvPoison,
 }
 
 pub type EvalResult = std::result::Result<Value, LankError>;
@@ -80,7 +80,7 @@ impl From<LankError> for String {
             | LankError::UnknownFunction(s)
             | LankError::WrongType(s)
             | LankError::Redefinition(s) => s,
-            LankError::EnvPoison => "Env poisoned".to_owned()
+            LankError::EnvPoison => "Env poisoned".to_owned(),
         }
     }
 }
@@ -103,7 +103,7 @@ impl std::fmt::Display for LankError {
             }
             Self::UnknownFunction(s) => write!(f, "{s} is not a function!"),
             Self::WrongType(s) => write!(f, "{s}: wrong type!"),
-            Self::Redefinition(s) => write!(f, "Cannot redefine {s}")
+            Self::Redefinition(s) => write!(f, "Cannot redefine {s}"),
         }
     }
 }

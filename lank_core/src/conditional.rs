@@ -2,8 +2,7 @@ use model::{env::set_env, error::LankError, value::Args};
 
 use super::{
     args::{assert_symbol, assert_vec, get_args},
-    eval_value,
-    Env, EnvPtr, EvalResult, Value,
+    eval_value, Env, EnvPtr, EvalResult, Value,
 };
 use std::rc::Rc;
 
